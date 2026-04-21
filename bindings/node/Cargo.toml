@@ -1,0 +1,16 @@
+[package]
+name = "nextral-node"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+napi = { version = "2", default-features = false, features = ["napi6", "tokio_rt"] }
+napi-derive = "2"
+nextral = { path = "../.." }
+
+[build-dependencies]
+napi-build = "2"

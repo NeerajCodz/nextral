@@ -1,28 +1,34 @@
-# neuros
+# nextral
 
-`neuros` is a **docs-first** Python package scaffold for a memory-enabled agent runtime.
+`nextral` is a runtime-neutral monorepo with a canonical Rust core and FFI bindings for Python and Node.js.
 
-Release `0.0.1` intentionally ships architecture, packaging, and CLI help only. Runtime memory/tool/file features are planned and documented, but not implemented yet.
+## Architecture at a glance
 
-## Install
-
-```bash
-pip install neuros
+```text
+nextral/
+├── src/                 # canonical Rust core
+├── bindings/
+│   ├── python/          # PyO3 bridge + Python wrappers
+│   └── node/            # napi-rs bridge + TS wrappers
+├── apps/                # native consumers (CLI, MCP, web, examples)
+├── tests/
+├── docs/
+├── scripts/
+├── Cargo.toml
+├── package.json
+└── pyproject.toml
 ```
 
-## CLI
+## Build surfaces
 
 ```bash
-neuros --help
-neuros about
-neuros memory --help
-neuros memory add-file --help
+cargo build --workspace
+pip install -e bindings/python
 ```
 
 ## Documentation
 
 - Main index: `docs/README.md`
+- Project structure: `docs/architecture/project-structure.md`
 - Memory system docs: `docs/memory/README.md`
-- Release notes: `docs/releases/0.0.1.md`
-- Package architecture: `docs/architecture/project-structure.md`
 

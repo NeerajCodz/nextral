@@ -1,13 +1,13 @@
-# Neuros Docs
+# Nextral Docs
 
-This repository currently publishes a **docs-first 0.0.1 scaffold**.
+This repository now uses a **runtime-neutral monorepo** with a canonical Rust core and language bindings.
 
 ## Start here
 
-1. `getting-started/installation.md`
-2. `getting-started/quickstart.md`
-3. `cli/README.md`
-4. `architecture/project-structure.md`
+1. `architecture/project-structure.md`
+2. `getting-started/installation.md`
+3. `getting-started/quickstart.md`
+4. `cli/README.md`
 5. `releases/0.0.1.md`
 
 ## Memory architecture

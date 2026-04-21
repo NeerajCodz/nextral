@@ -1,21 +1,27 @@
 # Installation
 
-## PyPI
+## Python bindings
 
 ```bash
-pip install neuros
+pip install nextral
 ```
 
-## Source (development)
+## Source (development, Python)
 
 ```bash
-pip install -e .
+pip install -e bindings/python
+```
+
+## Build Rust workspace
+
+```bash
+cargo build --workspace
 ```
 
 ## Verify
 
 ```bash
-neuros --help
-neuros --version
+python -m nextral --help
+python -m nextral --version
 ```
 

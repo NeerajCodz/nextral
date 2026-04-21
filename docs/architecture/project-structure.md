@@ -1,58 +1,55 @@
-# Project structure (initialized for 0.0.1)
+# Project structure (Nextral runtime-neutral layout)
 
 ```text
-neuros/
+nextral/
+├── src/
+│   ├── memory/
+│   ├── retrieval/
+│   ├── graph/
+│   ├── scoring/
+│   ├── runtime/
+│   ├── contracts/
+│   └── lib.rs
+├── bindings/
+│   ├── python/
+│   │   ├── nextral/
+│   │   ├── src/
+│   │   ├── pyproject.toml
+│   │   └── Cargo.toml
+│   └── node/
+│       ├── src/
+│       ├── package.json
+│       ├── Cargo.toml
+│       └── index.ts
+├── apps/
+│   ├── cli/
+│   ├── mcp/
+│   ├── web/
+│   └── examples/
+├── tests/
+├── docs/
+├── scripts/
+├── Cargo.toml
+├── package.json
 ├── pyproject.toml
 ├── README.md
-├── CHANGELOG.md
-├── docs/
-│   ├── README.md
-│   ├── architecture/
-│   │   └── project-structure.md
-│   ├── cli/
-│   │   ├── README.md
-│   │   └── help.md
-│   ├── getting-started/
-│   │   ├── installation.md
-│   │   └── quickstart.md
-│   ├── releases/
-│   │   └── 0.0.1.md
-│   └── memory/
-│       ├── README.md
-│       ├── architecture.md
-│       ├── types/
-│       ├── pipeline/
-│       ├── contracts/
-│       ├── workflow/
-│       └── operations/
-└── src/
-    └── neuros/
-        ├── __init__.py
-        ├── __main__.py
-        ├── _version.py
-        ├── cli.py
-        ├── memory/
-        │   ├── __init__.py
-        │   └── types/
-        │       └── __init__.py
-        ├── tools/
-        │   └── __init__.py
-        ├── files/
-        │   └── __init__.py
-        ├── storage/
-        │   └── __init__.py
-        └── integrations/
-            ├── __init__.py
-            └── langchain/
-                └── __init__.py
+└── CHANGELOG.md
 ```
 
-## Intent of this scaffold
+## Runtime-neutral boundary
 
-- Memory-first architecture aligned with docs in `docs/memory/`
-- Future tool runtime namespace in `src/neuros/tools`
-- Future file-to-memory ingestion namespace in `src/neuros/files`
-- Future LangChain adapters in `src/neuros/integrations/langchain`
+- The Rust core in `src/` is canonical and language-agnostic.
+- Core APIs use Rust-native types (`Vec<T>`, structs, enums) and `thiserror` for domain errors.
+- FFI crates in `bindings/python` and `bindings/node` map those errors into runtime-native exceptions.
 
-No runtime logic is shipped in `0.0.1`.
+## Async strategy
+
+- Internal concurrency and orchestration are handled in the Rust runtime module (Tokio-based).
+- Python bindings bridge async work into `asyncio` with `pyo3-async-runtimes`.
+- Node bindings expose async Rust work as Promise-based APIs through napi-rs.
+
+## Serialization strategy
+
+- Shared graph/memory payloads are represented as Serde-compatible Rust types in the core.
+- Bindings convert those payloads into runtime-native objects without duplicating business logic.
 

@@ -1,0 +1,12 @@
+{
+  "name": "nextral-workspace",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "bindings/node",
+    "apps/web"
+  ],
+  "scripts": {
+    "build:node": "npm --workspace bindings/node run build"
+  }
+}

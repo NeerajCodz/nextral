@@ -1,0 +1,24 @@
+[package]
+name = "nextral"
+version = "0.1.0"
+edition = "2021"
+description = "Canonical Rust core for runtime-neutral memory and retrieval."
+license = "MIT"
+
+[lib]
+name = "nextral"
+path = "src/lib.rs"
+
+[workspace]
+members = [
+  "bindings/python",
+  "bindings/node",
+  "apps/cli",
+  "apps/mcp",
+]
+resolver = "2"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+thiserror = "1.0"
+tokio = { version = "1.40", features = ["rt", "macros"] }

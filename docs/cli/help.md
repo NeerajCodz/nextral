@@ -1,11 +1,11 @@
-# Help snapshots (0.0.1)
+# Help snapshots (0.1.0)
 
-## `neuros --help`
+## `nextral --help`
 
 ```text
-usage: neuros [-h] [--version] COMMAND ...
+usage: nextral [-h] [--version] COMMAND ...
 
-Neuros CLI - docs-first scaffold for a memory-enabled agent runtime. Use subcommand help to inspect planned command surfaces.
+Nextral CLI - runtime-neutral scaffold for a memory-enabled agent runtime. Use subcommand help to inspect planned command surfaces.
 
 positional arguments:
   COMMAND
@@ -19,10 +19,10 @@ options:
   --version     show program's version number and exit
 ```
 
-## `neuros memory --help`
+## `nextral memory --help`
 
 ```text
-usage: neuros memory [-h] SUBCOMMAND ...
+usage: nextral memory [-h] SUBCOMMAND ...
 
 positional arguments:
   SUBCOMMAND
@@ -33,10 +33,10 @@ options:
   -h, --help    show this help message and exit
 ```
 
-## `neuros memory add-file --help`
+## `nextral memory add-file --help`
 
 ```text
-usage: neuros memory add-file [-h] [path]
+usage: nextral memory add-file [-h] [path]
 
 positional arguments:
   path          File path to register for future memory ingestion.
@@ -45,10 +45,10 @@ options:
   -h, --help    show this help message and exit
 ```
 
-## `neuros tools --help`
+## `nextral tools --help`
 
 ```text
-usage: neuros tools [-h] SUBCOMMAND ...
+usage: nextral tools [-h] SUBCOMMAND ...
 
 positional arguments:
   SUBCOMMAND
@@ -58,10 +58,10 @@ options:
   -h, --help    show this help message and exit
 ```
 
-## `neuros files --help`
+## `nextral files --help`
 
 ```text
-usage: neuros files [-h] SUBCOMMAND ...
+usage: nextral files [-h] SUBCOMMAND ...
 
 positional arguments:
   SUBCOMMAND
