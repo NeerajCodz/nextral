@@ -4,8 +4,8 @@ build-backend = "maturin"
 
 [project]
 name = "nextral"
-version = "0.1.0"
-description = "Python bindings for the Nextral canonical Rust core."
+version = "0.0.1"
+description = "Info-only Python package for Nextral publishing metadata."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }

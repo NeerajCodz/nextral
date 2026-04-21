@@ -1,5 +1,5 @@
 {
-  "name": "nextral-workspace",
+  "name": "@astraive/nextral-monorepo",
   "private": true,
   "version": "0.1.0",
   "workspaces": [
@@ -8,5 +8,8 @@
   ],
   "scripts": {
     "build:node": "npm --workspace bindings/node run build"
+  },
+  "dependencies": {
+    "nextral": "^0.0.1"
   }
 }

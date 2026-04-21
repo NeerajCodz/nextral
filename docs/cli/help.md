@@ -1,4 +1,4 @@
-# Help snapshots (0.1.0)
+# Help snapshots (0.0.1)
 
 ## `nextral --help`
 

@@ -11,4 +11,8 @@ venv/
 target/
 node_modules/
 *.node
+*.whl
+*.tgz
+.maturin/
+/package-lock.json
 

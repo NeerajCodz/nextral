@@ -1,6 +1,6 @@
 # Quickstart
 
-Version `0.1.0` introduces the Nextral monorepo structure and runtime-neutral scaffolding.
+Version `0.0.1` is an info-only package release for Python and npm publishing surfaces.
 
 ## Inspect available command surfaces
 

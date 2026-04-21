@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.0.1 (nextral info-only release)
+
+- Initialized info-only publish surfaces for:
+  - PyPI package `nextral`
+  - npm package `nextral`
+- Set package metadata/version to `0.0.1` for Python and Node release channels.
+- Kept runtime implementation surfaces scaffolded while shipping metadata-first publish targets.
+
 ## 0.1.0
 
 - Rebranded project namespace from `neuros` to `nextral`.

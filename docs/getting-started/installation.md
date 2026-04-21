@@ -6,6 +6,12 @@
 pip install nextral
 ```
 
+## Node bindings
+
+```bash
+npm install nextral
+```
+
 ## Source (development, Python)
 
 ```bash

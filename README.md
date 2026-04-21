@@ -2,6 +2,8 @@
 
 `nextral` is a runtime-neutral monorepo with a canonical Rust core and FFI bindings for Python and Node.js.
 
+Current public package bootstrap is **info-only** as `nextral` at version `0.0.1` for both PyPI and npm.
+
 ## Architecture at a glance
 
 ```text
@@ -24,6 +26,7 @@ nextral/
 ```bash
 cargo build --workspace
 pip install -e bindings/python
+npm install nextral
 ```
 
 ## Documentation
