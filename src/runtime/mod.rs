@@ -1,5 +1,11 @@
+pub mod consolidation;
+pub mod governance;
+pub mod graphify;
 pub mod ingestion;
+pub mod reembed;
+pub mod reminders;
 pub mod retrieval;
+pub mod session;
 
 use crate::{
     contracts::CoreResult,

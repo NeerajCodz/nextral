@@ -34,7 +34,16 @@ mod tests {
         planner::{all_operation_plans, operation_plan, MemoryOperation},
         prospective::{ReminderRecord, ReminderStatus},
         retrieval::{retrieve, RetrievalRequest, SourcePath},
-        runtime,
+        runtime::{
+            self,
+            consolidation::{consolidate_session, ConsolidationLane, ConsolidationRequest},
+            governance::{forget_memory, ForgetMemoryRequest},
+            reembed::plan_reembed,
+            reminders::{schedule_reminder, ScheduleReminderRequest},
+            session::{
+                append_session_message, assemble_working_context, AppendSessionMessageRequest,
+            },
+        },
         store::{MemoryIndexStore, ReminderStore, TestMemoryStore},
         topology::{all_profiles, requires_store, StoreRole},
     };
@@ -304,5 +313,86 @@ mod tests {
         };
 
         assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn session_consolidation_reminder_forget_and_reembed_paths_work() {
+        let mut store = TestMemoryStore::new();
+        let appended = append_session_message(
+            &mut store,
+            AppendSessionMessageRequest {
+                tenant_id: "tenant_1".to_string(),
+                user_id: "usr_1".to_string(),
+                session_id: "sess_1".to_string(),
+                role: "user".to_string(),
+                content: "Atlas should use PostgreSQL and remind me Friday".to_string(),
+                idempotency_key: None,
+            },
+            20,
+        )
+        .unwrap();
+        assert_eq!(appended.hot_tail_count, 1);
+
+        let consolidated = consolidate_session(
+            &mut store,
+            ConsolidationRequest {
+                tenant_id: "tenant_1".to_string(),
+                user_id: "usr_1".to_string(),
+                session_id: "sess_1".to_string(),
+                lane: ConsolidationLane::Fast,
+                policy: IngestionPolicy {
+                    min_importance_score: 0.1,
+                    min_confidence_score: 0.1,
+                },
+            },
+        )
+        .unwrap();
+        assert_eq!(consolidated.job.status, "completed");
+
+        let memory_id = consolidated.accepted[0].record_id.clone().unwrap();
+        let scheduled = schedule_reminder(
+            &mut store,
+            ScheduleReminderRequest {
+                user_id: "usr_1".to_string(),
+                source_memory_id: memory_id.clone(),
+                kind: crate::prospective::ReminderKind::FollowUp,
+                title: "Check Atlas migration".to_string(),
+                due_at: "9999999999".to_string(),
+                timezone: "configured-by-user".to_string(),
+            },
+        )
+        .unwrap();
+        assert_eq!(scheduled.receipts[0].operation, "upsert_reminder");
+
+        let mut retrieval_request = RetrievalRequest::test("tenant_1", "usr_1", "PostgreSQL");
+        retrieval_request.session_id = Some("sess_1".to_string());
+        let context = assemble_working_context(&mut store, retrieval_request, 20).unwrap();
+        assert_eq!(context.session_tail.len(), 1);
+        assert_eq!(context.retrieved_memory_ids.len(), 1);
+
+        let forgotten = forget_memory(
+            &mut store,
+            ForgetMemoryRequest {
+                tenant_id: "tenant_1".to_string(),
+                user_id: "usr_1".to_string(),
+                memory_id: memory_id.clone(),
+                actor: "usr_1".to_string(),
+                reason: "user requested removal".to_string(),
+                redact: true,
+            },
+        )
+        .unwrap();
+        assert!(forgotten.redaction_transition.is_some());
+        assert_eq!(forgotten.receipts.len(), 5);
+
+        let plan = plan_reembed(
+            "tenant_1",
+            "memories_v1",
+            "memories_v2_shadow",
+            "configured-provider",
+            "configured-model",
+        )
+        .unwrap();
+        assert_eq!(plan.status, "planned");
     }
 }
