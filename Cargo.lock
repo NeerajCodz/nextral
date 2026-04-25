@@ -190,6 +190,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "nextral-api"
+version = "0.1.0"
+dependencies = [
+ "nextral",
+]
+
+[[package]]
 name = "nextral-cli"
 version = "0.1.0"
 dependencies = [

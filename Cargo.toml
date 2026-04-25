@@ -13,6 +13,7 @@ path = "src/lib.rs"
 members = [
   "bindings/python",
   "bindings/node",
+  "apps/api",
   "apps/cli",
   "apps/mcp",
 ]
