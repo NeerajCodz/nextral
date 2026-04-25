@@ -310,6 +310,7 @@ if (!nativeBinding) {
   throw new Error(`Failed to load native binding`)
 }
 
-const { lexicalScore } = nativeBinding
+const { lexicalScore, validateConfig } = nativeBinding
 
 module.exports.lexicalScore = lexicalScore
+module.exports.validateConfig = validateConfig
