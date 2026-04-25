@@ -13,6 +13,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Check formatting
         run: cargo fmt --all -- --check
+      - name: Run clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
       - name: Run tests
         run: cargo test --workspace
 
@@ -32,6 +34,8 @@ jobs:
         run: npm ci
       - name: Build node package
         run: npm --workspace bindings/node run build
+      - name: Node smoke
+        run: node -e "const n=require('./bindings/node/index.js'); console.log(n.e2ESmoke())"
 
   python:
     runs-on: windows-latest
@@ -46,3 +50,9 @@ jobs:
       - name: Build Python wheel
         working-directory: bindings/python
         run: python -m maturin build
+      - name: Install Python wheel
+        working-directory: bindings/python
+        run: python -m pip install (Get-ChildItem target/wheels/*.whl | Select-Object -First 1).FullName
+      - name: Python CLI help
+        working-directory: bindings/python
+        run: python -m nextral --help

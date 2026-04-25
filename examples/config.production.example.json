@@ -24,6 +24,12 @@
     "endpoint": "${NEXTRAL_EXTRACTION_ENDPOINT}",
     "api_key_env": "NEXTRAL_EXTRACTION_API_KEY"
   },
+  "reranker": {
+    "kind": "none",
+    "model": null,
+    "endpoint": null,
+    "api_key_env": null
+  },
   "ingestion_policy": {
     "min_importance_score": 0.35,
     "min_confidence_score": 0.6
