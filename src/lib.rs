@@ -5,6 +5,7 @@ pub mod graph;
 pub mod ingestion;
 pub mod memory;
 pub mod providers;
+pub mod ports;
 pub mod prospective;
 pub mod retrieval;
 pub mod runtime;
