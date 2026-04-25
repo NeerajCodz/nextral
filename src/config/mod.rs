@@ -46,6 +46,24 @@ pub struct ExtractionProviderConfig {
     pub api_key_env: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum RerankerProviderKind {
+    None,
+    OpenAiCompatible,
+    Http,
+    ExternalCallback,
+    Test,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RerankerProviderConfig {
+    pub kind: RerankerProviderKind,
+    pub model: Option<String>,
+    pub endpoint: Option<String>,
+    pub api_key_env: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct IngestionPolicy {
     pub min_importance_score: f32,
@@ -118,6 +136,7 @@ pub struct NextralConfig {
     pub stores: Option<StoreConfig>,
     pub embedding: EmbeddingProviderConfig,
     pub extraction: ExtractionProviderConfig,
+    pub reranker: Option<RerankerProviderConfig>,
     pub ingestion_policy: IngestionPolicy,
     pub retrieval_policy: RetrievalPolicy,
     pub cache: CacheConfig,
@@ -139,6 +158,9 @@ impl NextralConfig {
         validate_retrieval_policy(&self.retrieval_policy)?;
         validate_embedding(&self.embedding)?;
         validate_extraction(&self.extraction)?;
+        if let Some(reranker) = &self.reranker {
+            validate_reranker(reranker)?;
+        }
         validate_cache(&self.cache)?;
 
         if self.backend == RuntimeBackend::ProductionStores {
@@ -226,6 +248,20 @@ fn validate_extraction(config: &ExtractionProviderConfig) -> CoreResult<()> {
             require_option("extraction.api_key_env", &config.api_key_env)?;
         }
         ExtractionProviderKind::ExternalCallback | ExtractionProviderKind::Test => {}
+    }
+    Ok(())
+}
+
+fn validate_reranker(config: &RerankerProviderConfig) -> CoreResult<()> {
+    match config.kind {
+        RerankerProviderKind::None
+        | RerankerProviderKind::ExternalCallback
+        | RerankerProviderKind::Test => {}
+        RerankerProviderKind::OpenAiCompatible | RerankerProviderKind::Http => {
+            require_option("reranker.model", &config.model)?;
+            require_option("reranker.endpoint", &config.endpoint)?;
+            require_option("reranker.api_key_env", &config.api_key_env)?;
+        }
     }
     Ok(())
 }

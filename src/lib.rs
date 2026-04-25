@@ -26,8 +26,8 @@ mod tests {
         config::{
             AuthConfig, CacheConfig, EmbeddingProviderConfig, EmbeddingProviderKind,
             ExtractionProviderConfig, ExtractionProviderKind, IngestionPolicy, NextralConfig,
-            ObservabilityConfig, RetrievalPolicy, RuntimeBackend, ScoringWeights, ServiceConfig,
-            StoreConfig,
+            ObservabilityConfig, RerankerProviderConfig, RerankerProviderKind, RetrievalPolicy,
+            RuntimeBackend, ScoringWeights, ServiceConfig, StoreConfig,
         },
         ingestion::{ingest_memory, IngestMemoryRequest, IngestStatus},
         memory::{ContentType, MemoryRecord, MemoryStatus, MemoryType, PrivacyLevel, SourceType},
@@ -257,6 +257,12 @@ mod tests {
                 endpoint: Some("https://example.invalid/extract".to_string()),
                 api_key_env: Some("NEXTRAL_EXTRACTION_API_KEY".to_string()),
             },
+            reranker: Some(RerankerProviderConfig {
+                kind: RerankerProviderKind::None,
+                model: None,
+                endpoint: None,
+                api_key_env: None,
+            }),
             ingestion_policy: IngestionPolicy {
                 min_importance_score: 0.4,
                 min_confidence_score: 0.6,
