@@ -194,6 +194,7 @@ name = "nextral-api"
 version = "0.1.0"
 dependencies = [
  "nextral",
+ "serde_json",
 ]
 
 [[package]]
@@ -208,6 +209,7 @@ name = "nextral-mcp"
 version = "0.1.0"
 dependencies = [
  "nextral",
+ "serde_json",
 ]
 
 [[package]]
