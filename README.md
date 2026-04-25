@@ -34,4 +34,5 @@ npm install nextral
 - Main index: `docs/README.md`
 - Project structure: `docs/architecture/project-structure.md`
 - Memory system docs: `docs/memory/README.md`
+- Package production runtime: `docs/package-production.md`
 
