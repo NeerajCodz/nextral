@@ -193,6 +193,28 @@ Run docker @(
 
 Write-Host "Running package smoke"
 Run cargo @("run", "-p", "nextral-cli", "--", "memory", "smoke")
+$adapterSmokePath = Join-Path $env:TEMP "nextral-adapter-smoke.json"
+$adapterSmoke = @{
+    postgres_url = "postgres://nextral:nextral@localhost:5432/nextral"
+    redis_url = "redis://127.0.0.1:6379/0"
+    redis_key_prefix = "nextral:e2e:adapter"
+    tenant_id = "tenant_1"
+    user_id = "user_1"
+    session_id = "session_1"
+    memory_id = "mem_adapter_smoke"
+    memory_content = "Adapter smoke verifies PostgreSQL and Redis production ports"
+    embedding_provider = "testkit"
+    embedding_model = "test-embedding"
+    embedding_dim = 4
+    reminder_title = "Check adapter smoke"
+    reminder_due_at = "1893456000"
+    timezone = "UTC"
+    cache_key = "tenant_1:user_1:adapter_smoke"
+    cache_value_json = '{"status":"ok"}'
+    cache_ttl_seconds = 60
+} | ConvertTo-Json -Depth 10
+[System.IO.File]::WriteAllText($adapterSmokePath, $adapterSmoke, [System.Text.UTF8Encoding]::new($false))
+Run cargo @("run", "-p", "nextral-cli", "--", "adapters", "smoke", $adapterSmokePath)
 Run node @("-e", "const n=require('./bindings/node/index.js'); const r=JSON.parse(n.e2ESmoke()); if(r.status !== 'ok') process.exit(1); console.log(JSON.stringify(r));")
 
 Write-Host "Docker E2E passed: all seven memory systems covered across PostgreSQL, Redis, Qdrant, Neo4j, MinIO/S3, CLI, and Node."

@@ -167,6 +167,7 @@ mod tests {
 
         let memory_id = response.record_id.unwrap();
         let mut reminder = ReminderRecord::new(
+            "tenant_1",
             "usr_1",
             memory_id,
             crate::prospective::ReminderKind::FollowUp,
@@ -181,7 +182,7 @@ mod tests {
         store.upsert_reminder(reminder).unwrap();
         assert_eq!(
             store
-                .list_due_reminders("usr_1", "9999999999")
+                .list_due_reminders("tenant_1", "usr_1", "9999999999")
                 .unwrap()
                 .len(),
             1
@@ -353,6 +354,7 @@ mod tests {
         let scheduled = schedule_reminder(
             &mut store,
             ScheduleReminderRequest {
+                tenant_id: "tenant_1".to_string(),
                 user_id: "usr_1".to_string(),
                 source_memory_id: memory_id.clone(),
                 kind: crate::prospective::ReminderKind::FollowUp,

@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ScheduleReminderRequest {
+    pub tenant_id: String,
     pub user_id: String,
     pub source_memory_id: String,
     pub kind: ReminderKind,
@@ -27,6 +28,7 @@ pub fn schedule_reminder(
     request: ScheduleReminderRequest,
 ) -> CoreResult<ScheduleReminderResponse> {
     let reminder = ReminderRecord::new(
+        request.tenant_id,
         request.user_id,
         request.source_memory_id,
         request.kind,
