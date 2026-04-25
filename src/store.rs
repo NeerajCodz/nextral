@@ -43,7 +43,8 @@ pub trait MemoryIndexStore {
 pub trait GraphStore {
     fn merge_node(&mut self, node: GraphNode) -> CoreResult<()>;
     fn merge_edge(&mut self, edge: GraphEdge) -> CoreResult<()>;
-    fn graph_memory_ids(&self, user_id: &str, query: &str, max_hops: u8) -> CoreResult<Vec<String>>;
+    fn graph_memory_ids(&self, user_id: &str, query: &str, max_hops: u8)
+        -> CoreResult<Vec<String>>;
 }
 
 pub trait AuditSink {
@@ -77,7 +78,11 @@ impl TestMemoryStore {
 impl MemoryIndexStore for TestMemoryStore {
     fn upsert_memory(&mut self, record: MemoryRecord) -> CoreResult<()> {
         record.validate()?;
-        if let Some(existing) = self.memories.iter_mut().find(|memory| memory.id == record.id) {
+        if let Some(existing) = self
+            .memories
+            .iter_mut()
+            .find(|memory| memory.id == record.id)
+        {
             *existing = record;
             return Ok(());
         }
@@ -143,7 +148,10 @@ impl GraphStore for TestMemoryStore {
         }) {
             existing.last_confirmed_at = edge.last_confirmed_at;
             existing.confidence = existing.confidence.max(edge.confidence);
-            if !existing.source_memory_ids.contains(&edge.source_memory_ids[0]) {
+            if !existing
+                .source_memory_ids
+                .contains(&edge.source_memory_ids[0])
+            {
                 existing
                     .source_memory_ids
                     .extend(edge.source_memory_ids.iter().cloned());
@@ -154,7 +162,12 @@ impl GraphStore for TestMemoryStore {
         Ok(())
     }
 
-    fn graph_memory_ids(&self, user_id: &str, query: &str, _max_hops: u8) -> CoreResult<Vec<String>> {
+    fn graph_memory_ids(
+        &self,
+        user_id: &str,
+        query: &str,
+        _max_hops: u8,
+    ) -> CoreResult<Vec<String>> {
         let normalized = query.trim().to_lowercase();
         if normalized.is_empty() {
             return Ok(Vec::new());
@@ -170,7 +183,11 @@ impl GraphStore for TestMemoryStore {
             .map(|node| node.key.clone())
             .collect();
         let mut ids = Vec::new();
-        for edge in self.graph_edges.iter().filter(|edge| edge.user_id == user_id) {
+        for edge in self
+            .graph_edges
+            .iter()
+            .filter(|edge| edge.user_id == user_id)
+        {
             if node_keys.contains(&edge.from_key) || node_keys.contains(&edge.to_key) {
                 ids.extend(edge.source_memory_ids.iter().cloned());
             }
@@ -190,12 +207,12 @@ impl AuditSink for TestMemoryStore {
 
 impl ReminderStore for TestMemoryStore {
     fn upsert_reminder(&mut self, reminder: ReminderRecord) -> CoreResult<()> {
-        if self
-            .reminders
-            .iter()
-            .any(|existing| existing.id != reminder.id && existing.dedupe_key == reminder.dedupe_key)
-        {
-            return Err(CoreError::Conflict("duplicate reminder dedupe key".to_string()));
+        if self.reminders.iter().any(|existing| {
+            existing.id != reminder.id && existing.dedupe_key == reminder.dedupe_key
+        }) {
+            return Err(CoreError::Conflict(
+                "duplicate reminder dedupe key".to_string(),
+            ));
         }
         if let Some(existing) = self
             .reminders
@@ -218,7 +235,13 @@ impl ReminderStore for TestMemoryStore {
             .reminders
             .iter()
             .filter(|reminder| reminder.user_id == user_id)
-            .filter(|reminder| reminder.next_attempt_at.as_deref().unwrap_or(&reminder.due_at) <= due_at_or_before)
+            .filter(|reminder| {
+                reminder
+                    .next_attempt_at
+                    .as_deref()
+                    .unwrap_or(&reminder.due_at)
+                    <= due_at_or_before
+            })
             .filter(|reminder| reminder.is_due_visible())
             .cloned()
             .collect())

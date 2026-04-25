@@ -105,8 +105,18 @@ pub fn graphify_record(record: &MemoryRecord, hints: &[GraphHint]) -> CoreResult
 
     let mut relationships = Vec::new();
     for hint in hints {
-        let from = GraphNode::new(&record.user_id, &hint.from_label, &hint.from_name, hint.confidence)?;
-        let to = GraphNode::new(&record.user_id, &hint.to_label, &hint.to_name, hint.confidence)?;
+        let from = GraphNode::new(
+            &record.user_id,
+            &hint.from_label,
+            &hint.from_name,
+            hint.confidence,
+        )?;
+        let to = GraphNode::new(
+            &record.user_id,
+            &hint.to_label,
+            &hint.to_name,
+            hint.confidence,
+        )?;
         relationships.push(GraphEdge::new(
             &record.user_id,
             &from.key,

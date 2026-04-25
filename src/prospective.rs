@@ -77,7 +77,10 @@ impl ReminderRecord {
         let source_memory_id = source_memory_id.into();
         let title = title.into();
         let due_at = due_at.into();
-        if user_id.trim().is_empty() || source_memory_id.trim().is_empty() || title.trim().is_empty() {
+        if user_id.trim().is_empty()
+            || source_memory_id.trim().is_empty()
+            || title.trim().is_empty()
+        {
             return Err(CoreError::InvalidInput(
                 "user_id, source_memory_id, and title are required".to_string(),
             ));

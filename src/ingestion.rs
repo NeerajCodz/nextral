@@ -73,7 +73,10 @@ impl IngestMemoryRequest {
     }
 }
 
-pub fn ingest_memory<T>(store: &mut T, request: IngestMemoryRequest) -> CoreResult<IngestMemoryResponse>
+pub fn ingest_memory<T>(
+    store: &mut T,
+    request: IngestMemoryRequest,
+) -> CoreResult<IngestMemoryResponse>
 where
     T: MemoryIndexStore + AuditSink + GraphStore,
 {
@@ -154,6 +157,10 @@ where
         status: IngestStatus::Accepted,
         record_id: Some(id),
         validation_errors: Vec::new(),
-        write_receipts: vec!["memory_index".to_string(), "audit".to_string(), "graph".to_string()],
+        write_receipts: vec![
+            "memory_index".to_string(),
+            "audit".to_string(),
+            "graph".to_string(),
+        ],
     })
 }

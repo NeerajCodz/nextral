@@ -140,7 +140,9 @@ impl MemoryRecord {
             return Err(CoreError::InvalidInput("user_id is required".to_string()));
         }
         if self.content.trim().is_empty() {
-            return Err(CoreError::InvalidInput("content cannot be empty".to_string()));
+            return Err(CoreError::InvalidInput(
+                "content cannot be empty".to_string(),
+            ));
         }
         validate_score("importance_score", self.importance_score)?;
         if let Some(score) = self.confidence_score {
@@ -218,7 +220,9 @@ pub fn upsert(records: &mut Vec<MemoryRecord>, record: MemoryRecord) {
 
 pub fn validate_score(name: &str, score: f32) -> CoreResult<()> {
     if !(0.0..=1.0).contains(&score) || score.is_nan() {
-        return Err(CoreError::InvalidInput(format!("{name} must be within 0..=1")));
+        return Err(CoreError::InvalidInput(format!(
+            "{name} must be within 0..=1"
+        )));
     }
     Ok(())
 }

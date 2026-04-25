@@ -128,8 +128,14 @@ pub struct NextralConfig {
 
 impl NextralConfig {
     pub fn validate(&self) -> CoreResult<()> {
-        validate_score("ingestion_policy.min_importance_score", self.ingestion_policy.min_importance_score)?;
-        validate_score("ingestion_policy.min_confidence_score", self.ingestion_policy.min_confidence_score)?;
+        validate_score(
+            "ingestion_policy.min_importance_score",
+            self.ingestion_policy.min_importance_score,
+        )?;
+        validate_score(
+            "ingestion_policy.min_confidence_score",
+            self.ingestion_policy.min_confidence_score,
+        )?;
         validate_retrieval_policy(&self.retrieval_policy)?;
         validate_embedding(&self.embedding)?;
         validate_extraction(&self.extraction)?;
@@ -137,7 +143,9 @@ impl NextralConfig {
 
         if self.backend == RuntimeBackend::ProductionStores {
             let stores = self.stores.as_ref().ok_or_else(|| {
-                CoreError::InvalidInput("stores config is required for production_stores backend".to_string())
+                CoreError::InvalidInput(
+                    "stores config is required for production_stores backend".to_string(),
+                )
             })?;
             validate_stores(stores)?;
         }
@@ -163,14 +171,18 @@ pub fn validate_config_json(config_json: &str) -> CoreResult<String> {
 
 fn validate_score(name: &str, value: f32) -> CoreResult<()> {
     if !(0.0..=1.0).contains(&value) || value.is_nan() {
-        return Err(CoreError::InvalidInput(format!("{name} must be within 0..=1")));
+        return Err(CoreError::InvalidInput(format!(
+            "{name} must be within 0..=1"
+        )));
     }
     Ok(())
 }
 
 fn validate_retrieval_policy(policy: &RetrievalPolicy) -> CoreResult<()> {
     if policy.privacy_scope.is_empty() {
-        return Err(CoreError::InvalidInput("retrieval_policy.privacy_scope is required".to_string()));
+        return Err(CoreError::InvalidInput(
+            "retrieval_policy.privacy_scope is required".to_string(),
+        ));
     }
     if policy.token_budget == 0 || policy.top_k_vector == 0 || policy.max_graph_hops == 0 {
         return Err(CoreError::InvalidInput(
@@ -182,7 +194,9 @@ fn validate_retrieval_policy(policy: &RetrievalPolicy) -> CoreResult<()> {
         + policy.scoring_weights.importance
         + policy.scoring_weights.access;
     if (total - 1.0).abs() > 0.001 {
-        return Err(CoreError::InvalidInput("retrieval scoring weights must sum to 1.0".to_string()));
+        return Err(CoreError::InvalidInput(
+            "retrieval scoring weights must sum to 1.0".to_string(),
+        ));
     }
     Ok(())
 }
@@ -190,7 +204,9 @@ fn validate_retrieval_policy(policy: &RetrievalPolicy) -> CoreResult<()> {
 fn validate_embedding(config: &EmbeddingProviderConfig) -> CoreResult<()> {
     require("embedding.model", &config.model)?;
     if config.dimension == 0 {
-        return Err(CoreError::InvalidInput("embedding.dimension must be non-zero".to_string()));
+        return Err(CoreError::InvalidInput(
+            "embedding.dimension must be non-zero".to_string(),
+        ));
     }
     match config.kind {
         EmbeddingProviderKind::OpenAiCompatible | EmbeddingProviderKind::Http => {
@@ -220,7 +236,9 @@ fn validate_cache(config: &CacheConfig) -> CoreResult<()> {
         || config.retrieval_ttl_seconds == 0
         || config.policy_ttl_seconds == 0
     {
-        return Err(CoreError::InvalidInput("cache TTLs must be non-zero".to_string()));
+        return Err(CoreError::InvalidInput(
+            "cache TTLs must be non-zero".to_string(),
+        ));
     }
     Ok(())
 }

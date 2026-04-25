@@ -81,7 +81,11 @@ impl RetrievalRequest {
             entities: Vec::new(),
             intent_topic: None,
             token_budget: 1800,
-            privacy_scope: vec![PrivacyLevel::Private, PrivacyLevel::Sensitive, PrivacyLevel::Shared],
+            privacy_scope: vec![
+                PrivacyLevel::Private,
+                PrivacyLevel::Sensitive,
+                PrivacyLevel::Shared,
+            ],
             top_k_vector: 12,
             max_graph_hops: 2,
         }
@@ -117,13 +121,22 @@ where
 
     let mut vector_items: Vec<(MemoryRecord, f32)> = records
         .iter()
-        .map(|record| (record.clone(), lexical_score(&record.content, &request.query_text)))
+        .map(|record| {
+            (
+                record.clone(),
+                lexical_score(&record.content, &request.query_text),
+            )
+        })
         .filter(|(_, score)| *score > 0.0)
         .collect();
     vector_items.sort_by(|left, right| right.1.total_cmp(&left.1));
     vector_items.truncate(request.top_k_vector);
 
-    let graph_ids = store.graph_memory_ids(&request.user_id, &request.query_text, request.max_graph_hops)?;
+    let graph_ids = store.graph_memory_ids(
+        &request.user_id,
+        &request.query_text,
+        request.max_graph_hops,
+    )?;
     let mut merged: HashMap<String, RetrievedItem> = HashMap::new();
 
     for (record, semantic_similarity) in &vector_items {
@@ -137,7 +150,13 @@ where
             merged
                 .entry(memory_id.clone())
                 .and_modify(|item| item.source_path = SourcePath::Both)
-                .or_insert_with(|| item_from_record(record, SourcePath::Graph, lexical_score(&record.content, &request.query_text)));
+                .or_insert_with(|| {
+                    item_from_record(
+                        record,
+                        SourcePath::Graph,
+                        lexical_score(&record.content, &request.query_text),
+                    )
+                });
         }
     }
 
@@ -180,7 +199,11 @@ where
     })
 }
 
-fn item_from_record(record: &MemoryRecord, source_path: SourcePath, semantic_similarity: f32) -> RetrievedItem {
+fn item_from_record(
+    record: &MemoryRecord,
+    source_path: SourcePath,
+    semantic_similarity: f32,
+) -> RetrievedItem {
     let access = (record.access_count as f32 / 10.0).min(1.0);
     let recency = 1.0;
     let score = retrieval_score(

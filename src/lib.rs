@@ -4,9 +4,9 @@ pub mod contracts;
 pub mod graph;
 pub mod ingestion;
 pub mod memory;
-pub mod providers;
 pub mod ports;
 pub mod prospective;
+pub mod providers;
 pub mod retrieval;
 pub mod runtime;
 pub mod scoring;
@@ -131,11 +131,8 @@ mod tests {
         let response = ingest_memory(&mut store, request).unwrap();
         assert_eq!(response.status, IngestStatus::Accepted);
 
-        let retrieval = retrieve(
-            &mut store,
-            RetrievalRequest::local("usr_1", "PostgreSQL"),
-        )
-        .unwrap();
+        let retrieval =
+            retrieve(&mut store, RetrievalRequest::local("usr_1", "PostgreSQL")).unwrap();
         assert_eq!(retrieval.items.len(), 1);
         assert!(matches!(
             retrieval.items[0].source_path,
@@ -156,7 +153,13 @@ mod tests {
             .transition(ReminderStatus::Due, "system", "window reached")
             .unwrap();
         store.upsert_reminder(reminder).unwrap();
-        assert_eq!(store.list_due_reminders("usr_1", "9999999999").unwrap().len(), 1);
+        assert_eq!(
+            store
+                .list_due_reminders("usr_1", "9999999999")
+                .unwrap()
+                .len(),
+            1
+        );
     }
 
     #[test]

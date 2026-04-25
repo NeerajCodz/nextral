@@ -81,11 +81,27 @@ pub struct AuditWrite {
 
 pub trait PostgresPort {
     fn upsert_memory(&self, record: &MemoryRecord) -> CoreResult<()>;
-    fn get_memory(&self, scope: &TenantUserScope, memory_id: &str) -> CoreResult<Option<MemoryRecord>>;
-    fn append_session_message(&self, scope: &TenantUserScope, session_id: &str, role: &str, content: &str) -> CoreResult<String>;
+    fn get_memory(
+        &self,
+        scope: &TenantUserScope,
+        memory_id: &str,
+    ) -> CoreResult<Option<MemoryRecord>>;
+    fn append_session_message(
+        &self,
+        scope: &TenantUserScope,
+        session_id: &str,
+        role: &str,
+        content: &str,
+    ) -> CoreResult<String>;
     fn upsert_reminder(&self, reminder: &ReminderRecord) -> CoreResult<()>;
     fn write_audit(&self, event: &AuditWrite) -> CoreResult<()>;
-    fn enqueue_outbox(&self, tenant_id: &str, event_type: &str, aggregate_id: &str, payload_json: &str) -> CoreResult<String>;
+    fn enqueue_outbox(
+        &self,
+        tenant_id: &str,
+        event_type: &str,
+        aggregate_id: &str,
+        payload_json: &str,
+    ) -> CoreResult<String>;
 }
 
 pub trait RedisPort {
@@ -97,16 +113,26 @@ pub trait RedisPort {
 }
 
 pub trait QdrantPort {
-    fn ensure_collection(&self, collection: &str, dimension: u32, distance: &str) -> CoreResult<()>;
+    fn ensure_collection(&self, collection: &str, dimension: u32, distance: &str)
+        -> CoreResult<()>;
     fn upsert_point(&self, collection: &str, point: &VectorPoint) -> CoreResult<()>;
-    fn search(&self, collection: &str, request: &VectorSearchRequest) -> CoreResult<Vec<VectorSearchHit>>;
+    fn search(
+        &self,
+        collection: &str,
+        request: &VectorSearchRequest,
+    ) -> CoreResult<Vec<VectorSearchHit>>;
     fn delete_point(&self, collection: &str, tenant_id: &str, memory_id: &str) -> CoreResult<()>;
 }
 
 pub trait Neo4jPort {
     fn merge_node(&self, node: &GraphNode) -> CoreResult<()>;
     fn merge_edge(&self, edge: &GraphEdge) -> CoreResult<()>;
-    fn related_memory_ids(&self, scope: &TenantUserScope, query_entities: &[String], max_hops: u8) -> CoreResult<Vec<String>>;
+    fn related_memory_ids(
+        &self,
+        scope: &TenantUserScope,
+        query_entities: &[String],
+        max_hops: u8,
+    ) -> CoreResult<Vec<String>>;
     fn redact_memory_edges(&self, scope: &TenantUserScope, memory_id: &str) -> CoreResult<()>;
 }
 
@@ -116,9 +142,18 @@ pub trait ObjectArchivePort {
 }
 
 pub trait RetrievalCacheKey {
-    fn retrieval_cache_key(&self, request: &RetrievalRequest, embedding_model: &str, schema_version: &str) -> CoreResult<String>;
+    fn retrieval_cache_key(
+        &self,
+        request: &RetrievalRequest,
+        embedding_model: &str,
+        schema_version: &str,
+    ) -> CoreResult<String>;
 }
 
 pub trait RerankerPort {
-    fn rerank(&self, request: &RetrievalRequest, items: Vec<RetrievedItem>) -> CoreResult<Vec<RetrievedItem>>;
+    fn rerank(
+        &self,
+        request: &RetrievalRequest,
+        items: Vec<RetrievedItem>,
+    ) -> CoreResult<Vec<RetrievedItem>>;
 }
