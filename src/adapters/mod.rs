@@ -1,3 +1,9 @@
+pub mod neo4j;
+pub mod postgres;
+pub mod qdrant;
+pub mod redis;
+pub mod s3;
+
 use crate::{
     config::StoreConfig,
     contracts::{CoreError, CoreResult},
@@ -50,5 +56,22 @@ impl ProductionStoreEndpoints {
             }
         }
         Ok(())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AdapterHealth {
+    pub backend: String,
+    pub configured: bool,
+    pub detail: String,
+}
+
+impl AdapterHealth {
+    pub fn configured(backend: impl Into<String>) -> Self {
+        Self {
+            backend: backend.into(),
+            configured: true,
+            detail: "configuration validated; network check not executed".to_string(),
+        }
     }
 }
