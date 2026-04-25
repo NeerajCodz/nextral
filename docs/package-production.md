@@ -12,7 +12,7 @@ service modes.
 - Neo4j: relational memory graph.
 - MinIO/S3: immutable transcript and source archive.
 
-Nextral does not require n8n or ClickHouse.
+Nextral does not require or ship n8n or ClickHouse integrations.
 
 ## Model providers
 
