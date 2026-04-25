@@ -4,6 +4,7 @@ pub mod contracts;
 pub mod graph;
 pub mod ingestion;
 pub mod memory;
+pub mod planner;
 pub mod ports;
 pub mod prospective;
 pub mod providers;
@@ -26,6 +27,7 @@ mod tests {
         },
         ingestion::{ingest_memory, IngestMemoryRequest, IngestStatus},
         memory::{ContentType, MemoryRecord, MemoryStatus, MemoryType, PrivacyLevel, SourceType},
+        planner::{all_operation_plans, operation_plan, MemoryOperation},
         prospective::{ReminderRecord, ReminderStatus},
         retrieval::{retrieve, RetrievalRequest, SourcePath},
         runtime,
@@ -188,6 +190,39 @@ mod tests {
                 .unwrap()
                 .durable
         );
+    }
+
+    #[test]
+    fn all_memory_types_have_operation_plans_in_every_direction() {
+        let plans = all_operation_plans();
+        assert_eq!(plans.len(), 49);
+
+        let prospective_schedule =
+            operation_plan(&MemoryType::Prospective, MemoryOperation::Schedule);
+        assert!(prospective_schedule
+            .steps
+            .iter()
+            .any(|step| step.name == "enqueue due reminder"));
+
+        let relational_retrieve =
+            operation_plan(&MemoryType::Relational, MemoryOperation::Retrieve);
+        assert!(relational_retrieve
+            .steps
+            .iter()
+            .any(|step| step.name == "run graph traversal"));
+
+        let episodic_archive = operation_plan(&MemoryType::Episodic, MemoryOperation::Archive);
+        assert!(episodic_archive
+            .steps
+            .iter()
+            .any(|step| step.name == "write archive object"));
+
+        let procedural_retrieve =
+            operation_plan(&MemoryType::Procedural, MemoryOperation::Retrieve);
+        assert!(procedural_retrieve
+            .steps
+            .iter()
+            .any(|step| step.name == "load procedural policy"));
     }
 
     #[test]
