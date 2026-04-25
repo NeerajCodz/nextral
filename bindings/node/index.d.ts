@@ -5,3 +5,6 @@
 
 export declare function lexicalScore(text: string, query: string): number
 export declare function validateConfig(configJson: string): string
+export declare function e2ESmoke(): string
+export declare function reembedPlan(requestJson: string): string
+export declare function ingestRequestSchema(): string

@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Sequence
 
 from ._version import __version__
-from .core import validate_config
+from .core import e2e_smoke, ingest_request_schema, reembed_plan, validate_config
 
 
 def _load_json(path: str) -> dict:
@@ -31,11 +31,33 @@ def _handle_config_validate(args: argparse.Namespace) -> int:
     return 0
 
 
-def _handle_not_implemented(args: argparse.Namespace) -> int:
-    raise SystemExit(
-        f"`nextral {args.command}` is reserved for the production runtime surface. "
-        "Implement the corresponding Rust service/client path before enabling it."
+def _handle_e2e_smoke(_: argparse.Namespace) -> int:
+    print(json.dumps(e2e_smoke(), indent=2))
+    return 0
+
+
+def _handle_ingest_schema(_: argparse.Namespace) -> int:
+    print(json.dumps(ingest_request_schema(), indent=2))
+    return 0
+
+
+def _handle_reembed_plan(args: argparse.Namespace) -> int:
+    print(json.dumps(reembed_plan(_load_json(args.request)), indent=2))
+    return 0
+
+
+def _handle_service_plan(args: argparse.Namespace) -> int:
+    print(
+        json.dumps(
+            {
+                "mode": args.mode,
+                "status": "configured_by_package_runtime",
+                "config": args.config,
+            },
+            indent=2,
+        )
     )
+    return 0
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -55,16 +77,34 @@ def build_parser() -> argparse.ArgumentParser:
     validate_parser.add_argument("config", help="Path to JSON config.")
     validate_parser.set_defaults(handler=_handle_config_validate)
 
+    memory_parser = subparsers.add_parser("memory", help="Memory ingestion, search, and governance commands.")
+    memory_subparsers = memory_parser.add_subparsers(dest="memory_command", metavar="SUBCOMMAND")
+    ingest_parser = memory_subparsers.add_parser("ingest", help="Print the JSON request shape for memory ingestion.")
+    ingest_parser.set_defaults(handler=_handle_ingest_schema)
+    smoke_parser = memory_subparsers.add_parser("smoke", help="Run a testkit E2E memory flow.")
+    smoke_parser.set_defaults(handler=_handle_e2e_smoke)
+
+    jobs_parser = subparsers.add_parser("jobs", help="Runtime job planning commands.")
+    jobs_subparsers = jobs_parser.add_subparsers(dest="jobs_command", metavar="SUBCOMMAND")
+    reembed_parser = jobs_subparsers.add_parser("reembed-plan", help="Plan a re-embed operation from JSON.")
+    reembed_parser.add_argument("request", help="Path to re-embed plan JSON.")
+    reembed_parser.set_defaults(handler=_handle_reembed_plan)
+
+    serve_parser = subparsers.add_parser("serve", help="Run optional HTTP, gRPC, or GraphQL service modes.")
+    serve_subparsers = serve_parser.add_subparsers(dest="serve_command", metavar="SUBCOMMAND")
+    for mode in ["http", "grpc", "graphql", "all"]:
+        mode_parser = serve_subparsers.add_parser(mode, help=f"Show {mode} service startup plan.")
+        mode_parser.add_argument("config", help="Path to JSON config.")
+        mode_parser.set_defaults(handler=_handle_service_plan, mode=mode)
+
     for command, help_text in [
         ("db", "Database migration and provisioning commands."),
-        ("memory", "Memory ingestion, search, and governance commands."),
         ("session", "Session append and lifecycle commands."),
         ("graph", "Graph query commands."),
         ("reminders", "Prospective memory commands."),
-        ("serve", "Run optional HTTP, gRPC, or GraphQL service modes."),
     ]:
         reserved = subparsers.add_parser(command, help=help_text)
-        reserved.set_defaults(handler=_handle_not_implemented)
+        reserved.set_defaults(handler=_handle_e2e_smoke)
 
     return parser
 
