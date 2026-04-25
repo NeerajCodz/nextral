@@ -9,6 +9,7 @@ use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct RetrievalRequest {
+    pub tenant_id: String,
     pub user_id: String,
     pub session_id: Option<String>,
     pub query_text: String,
@@ -73,8 +74,13 @@ pub struct RetrievalResponse {
 }
 
 impl RetrievalRequest {
-    pub fn local(user_id: impl Into<String>, query_text: impl Into<String>) -> Self {
+    pub fn test(
+        tenant_id: impl Into<String>,
+        user_id: impl Into<String>,
+        query_text: impl Into<String>,
+    ) -> Self {
         Self {
+            tenant_id: tenant_id.into(),
             user_id: user_id.into(),
             session_id: None,
             query_text: query_text.into(),
@@ -117,7 +123,8 @@ where
     } else {
         request.privacy_scope.clone()
     };
-    let records = store.list_memories(&request.user_id, &privacy_scope, false)?;
+    let records =
+        store.list_memories(&request.tenant_id, &request.user_id, &privacy_scope, false)?;
 
     let mut vector_items: Vec<(MemoryRecord, f32)> = records
         .iter()
@@ -173,7 +180,9 @@ where
     }
 
     for item in &selected {
-        if let Some(mut record) = store.get_memory(&request.user_id, &item.memory_id)? {
+        if let Some(mut record) =
+            store.get_memory(&request.tenant_id, &request.user_id, &item.memory_id)?
+        {
             record.mark_accessed();
             store.update_memory(record)?;
         }

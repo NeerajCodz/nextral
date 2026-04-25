@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct IngestMemoryRequest {
     pub id: Option<String>,
+    pub tenant_id: String,
     pub user_id: String,
     pub session_id: Option<String>,
     pub content: String,
@@ -46,6 +47,7 @@ pub struct IngestMemoryResponse {
 
 impl IngestMemoryRequest {
     pub fn new(
+        tenant_id: impl Into<String>,
         user_id: impl Into<String>,
         content: impl Into<String>,
         content_type: ContentType,
@@ -55,6 +57,7 @@ impl IngestMemoryRequest {
     ) -> Self {
         Self {
             id: None,
+            tenant_id: tenant_id.into(),
             user_id: user_id.into(),
             session_id: None,
             content: content.into(),
@@ -119,6 +122,7 @@ where
 
     let id = request.id.unwrap_or_else(|| {
         deterministic_id(&[
+            &request.tenant_id,
             &request.user_id,
             request.session_id.as_deref().unwrap_or(""),
             &request.content,
@@ -126,6 +130,7 @@ where
     });
     let mut record = MemoryRecord::new(
         id.clone(),
+        request.tenant_id.clone(),
         request.user_id.clone(),
         request.content,
         request.content_type,

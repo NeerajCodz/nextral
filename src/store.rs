@@ -30,9 +30,15 @@ pub struct AuditEvent {
 
 pub trait MemoryIndexStore {
     fn upsert_memory(&mut self, record: MemoryRecord) -> CoreResult<()>;
-    fn get_memory(&self, user_id: &str, id: &str) -> CoreResult<Option<MemoryRecord>>;
+    fn get_memory(
+        &self,
+        tenant_id: &str,
+        user_id: &str,
+        id: &str,
+    ) -> CoreResult<Option<MemoryRecord>>;
     fn list_memories(
         &self,
+        tenant_id: &str,
         user_id: &str,
         privacy_scope: &[PrivacyLevel],
         include_inactive: bool,
@@ -90,16 +96,24 @@ impl MemoryIndexStore for TestMemoryStore {
         Ok(())
     }
 
-    fn get_memory(&self, user_id: &str, id: &str) -> CoreResult<Option<MemoryRecord>> {
+    fn get_memory(
+        &self,
+        tenant_id: &str,
+        user_id: &str,
+        id: &str,
+    ) -> CoreResult<Option<MemoryRecord>> {
         Ok(self
             .memories
             .iter()
-            .find(|memory| memory.user_id == user_id && memory.id == id)
+            .find(|memory| {
+                memory.tenant_id == tenant_id && memory.user_id == user_id && memory.id == id
+            })
             .cloned())
     }
 
     fn list_memories(
         &self,
+        tenant_id: &str,
         user_id: &str,
         privacy_scope: &[PrivacyLevel],
         include_inactive: bool,
@@ -107,6 +121,7 @@ impl MemoryIndexStore for TestMemoryStore {
         Ok(self
             .memories
             .iter()
+            .filter(|memory| memory.tenant_id == tenant_id)
             .filter(|memory| memory.user_id == user_id)
             .filter(|memory| privacy_scope.contains(&memory.privacy_level))
             .filter(|memory| include_inactive || memory.status == MemoryStatus::Active)
@@ -115,11 +130,11 @@ impl MemoryIndexStore for TestMemoryStore {
     }
 
     fn update_memory(&mut self, record: MemoryRecord) -> CoreResult<()> {
-        if let Some(existing) = self
-            .memories
-            .iter_mut()
-            .find(|memory| memory.user_id == record.user_id && memory.id == record.id)
-        {
+        if let Some(existing) = self.memories.iter_mut().find(|memory| {
+            memory.tenant_id == record.tenant_id
+                && memory.user_id == record.user_id
+                && memory.id == record.id
+        }) {
             *existing = record;
             return Ok(());
         }

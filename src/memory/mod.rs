@@ -1,4 +1,7 @@
-use crate::contracts::{CoreError, CoreResult};
+use crate::{
+    contracts::{CoreError, CoreResult},
+    topology,
+};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::hash_map::DefaultHasher,
@@ -65,6 +68,7 @@ pub enum MemoryStatus {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct MemoryRecord {
     pub id: String,
+    pub tenant_id: String,
     pub user_id: String,
     pub session_id: Option<String>,
     pub content: String,
@@ -74,8 +78,11 @@ pub struct MemoryRecord {
     pub source_message_ids: Vec<String>,
     pub importance_score: f32,
     pub confidence_score: Option<f32>,
+    pub embedding_provider: Option<String>,
     pub embedding_model: Option<String>,
     pub embedding_dim: Option<u32>,
+    pub extraction_provider: Option<String>,
+    pub extraction_model: Option<String>,
     pub entities: Vec<String>,
     pub tags: Vec<String>,
     pub privacy_level: PrivacyLevel,
@@ -100,6 +107,7 @@ pub struct TransitionMetadata {
 impl MemoryRecord {
     pub fn new(
         id: impl Into<String>,
+        tenant_id: impl Into<String>,
         user_id: impl Into<String>,
         content: impl Into<String>,
         content_type: ContentType,
@@ -109,6 +117,7 @@ impl MemoryRecord {
         let now = now_timestamp();
         Self {
             id: id.into(),
+            tenant_id: tenant_id.into(),
             user_id: user_id.into(),
             session_id: None,
             content: content.into(),
@@ -118,8 +127,11 @@ impl MemoryRecord {
             source_message_ids: Vec::new(),
             importance_score: 0.5,
             confidence_score: Some(0.8),
+            embedding_provider: None,
             embedding_model: None,
             embedding_dim: None,
+            extraction_provider: None,
+            extraction_model: None,
             entities: Vec::new(),
             tags: Vec::new(),
             privacy_level: PrivacyLevel::Private,
@@ -135,6 +147,9 @@ impl MemoryRecord {
     pub fn validate(&self) -> CoreResult<()> {
         if self.id.trim().is_empty() {
             return Err(CoreError::InvalidInput("memory id is required".to_string()));
+        }
+        if self.tenant_id.trim().is_empty() {
+            return Err(CoreError::InvalidInput("tenant_id is required".to_string()));
         }
         if self.user_id.trim().is_empty() {
             return Err(CoreError::InvalidInput("user_id is required".to_string()));
@@ -153,6 +168,15 @@ impl MemoryRecord {
                 "unsupported schema_version {}; expected {}",
                 self.schema_version, CURRENT_SCHEMA_VERSION
             )));
+        }
+        let type_profile = topology::profile(&self.memory_type);
+        if self.status == MemoryStatus::Active
+            && !type_profile.durable
+            && self.source_type != SourceType::Realtime
+        {
+            return Err(CoreError::InvalidInput(
+                "working memory must remain ephemeral realtime state".to_string(),
+            ));
         }
         Ok(())
     }

@@ -11,6 +11,7 @@ pub mod retrieval;
 pub mod runtime;
 pub mod scoring;
 pub mod store;
+pub mod topology;
 
 pub use contracts::{CoreError, CoreResult};
 
@@ -29,6 +30,7 @@ mod tests {
         retrieval::{retrieve, RetrievalRequest, SourcePath},
         runtime,
         store::{MemoryIndexStore, ReminderStore, TestMemoryStore},
+        topology::{all_profiles, requires_store, StoreRole},
     };
 
     #[tokio::test]
@@ -36,6 +38,7 @@ mod tests {
         let records = vec![
             MemoryRecord::new(
                 "1",
+                "tenant_1",
                 "usr_1",
                 "tokio runtime boundary",
                 ContentType::Note,
@@ -44,6 +47,7 @@ mod tests {
             ),
             MemoryRecord::new(
                 "2",
+                "tenant_1",
                 "usr_1",
                 "graph traversal",
                 ContentType::Note,
@@ -63,6 +67,7 @@ mod tests {
     fn memory_contract_validation_and_transition_work() {
         let mut record = MemoryRecord::new(
             "mem_1",
+            "tenant_1",
             "usr_1",
             "Use PostgreSQL for Atlas",
             ContentType::Decision,
@@ -85,6 +90,7 @@ mod tests {
         let mut store = TestMemoryStore::new();
         let mut private = MemoryRecord::new(
             "mem_1",
+            "tenant_1",
             "usr_1",
             "private fact",
             ContentType::Fact,
@@ -95,6 +101,7 @@ mod tests {
         store.upsert_memory(private).unwrap();
         let mut shared = MemoryRecord::new(
             "mem_2",
+            "tenant_1",
             "usr_2",
             "other user fact",
             ContentType::Fact,
@@ -104,7 +111,7 @@ mod tests {
         shared.privacy_level = PrivacyLevel::Shared;
         store.upsert_memory(shared).unwrap();
         let records = store
-            .list_memories("usr_1", &[PrivacyLevel::Private], false)
+            .list_memories("tenant_1", "usr_1", &[PrivacyLevel::Private], false)
             .unwrap();
         assert_eq!(records.len(), 1);
         assert_eq!(records[0].id, "mem_1");
@@ -114,6 +121,7 @@ mod tests {
     fn ingestion_retrieval_graph_and_reminders_work() {
         let mut store = TestMemoryStore::new();
         let mut request = IngestMemoryRequest::new(
+            "tenant_1",
             "usr_1",
             "Rajan leads backend for Project Atlas using PostgreSQL",
             ContentType::Fact,
@@ -131,8 +139,11 @@ mod tests {
         let response = ingest_memory(&mut store, request).unwrap();
         assert_eq!(response.status, IngestStatus::Accepted);
 
-        let retrieval =
-            retrieve(&mut store, RetrievalRequest::local("usr_1", "PostgreSQL")).unwrap();
+        let retrieval = retrieve(
+            &mut store,
+            RetrievalRequest::test("tenant_1", "usr_1", "PostgreSQL"),
+        )
+        .unwrap();
         assert_eq!(retrieval.items.len(), 1);
         assert!(matches!(
             retrieval.items[0].source_path,
@@ -159,6 +170,23 @@ mod tests {
                 .unwrap()
                 .len(),
             1
+        );
+    }
+
+    #[test]
+    fn all_seven_memory_types_have_runtime_topology() {
+        let profiles = all_profiles();
+        assert_eq!(profiles.len(), 7);
+        assert!(requires_store(&MemoryType::Semantic, StoreRole::Qdrant));
+        assert!(requires_store(&MemoryType::Relational, StoreRole::Neo4j));
+        assert!(requires_store(&MemoryType::Prospective, StoreRole::Redis));
+        assert!(requires_store(&MemoryType::Episodic, StoreRole::S3));
+        assert!(
+            !profiles
+                .iter()
+                .find(|profile| profile.memory_type == MemoryType::Working)
+                .unwrap()
+                .durable
         );
     }
 
