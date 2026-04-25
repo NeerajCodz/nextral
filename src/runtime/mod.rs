@@ -4,18 +4,18 @@ use crate::{
     memory::MemoryRecord,
     retrieval::{self, RetrievalRequest, RetrievalResponse},
     scoring::{self, ScoredRecord},
-    store::LocalMemoryStore,
+    store::TestMemoryStore,
 };
 
 #[derive(Debug, Clone, Default)]
-pub struct LocalRuntime {
-    pub store: LocalMemoryStore,
+pub struct TestRuntime {
+    pub store: TestMemoryStore,
 }
 
-impl LocalRuntime {
+impl TestRuntime {
     pub fn new() -> Self {
         Self {
-            store: LocalMemoryStore::new(),
+            store: TestMemoryStore::new(),
         }
     }
 

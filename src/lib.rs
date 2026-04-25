@@ -27,7 +27,7 @@ mod tests {
         prospective::{ReminderRecord, ReminderStatus},
         retrieval::{retrieve, RetrievalRequest, SourcePath},
         runtime,
-        store::{LocalMemoryStore, MemoryIndexStore, ReminderStore},
+        store::{MemoryIndexStore, ReminderStore, TestMemoryStore},
     };
 
     #[tokio::test]
@@ -81,7 +81,7 @@ mod tests {
 
     #[test]
     fn local_store_filters_by_user_privacy_and_status() {
-        let mut store = LocalMemoryStore::new();
+        let mut store = TestMemoryStore::new();
         let mut private = MemoryRecord::new(
             "mem_1",
             "usr_1",
@@ -111,7 +111,7 @@ mod tests {
 
     #[test]
     fn ingestion_retrieval_graph_and_reminders_work() {
-        let mut store = LocalMemoryStore::new();
+        let mut store = TestMemoryStore::new();
         let mut request = IngestMemoryRequest::new(
             "usr_1",
             "Rajan leads backend for Project Atlas using PostgreSQL",

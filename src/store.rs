@@ -5,7 +5,6 @@ use crate::{
     prospective::ReminderRecord,
 };
 use serde::{Deserialize, Serialize};
-use std::{fs, path::PathBuf};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -61,7 +60,7 @@ pub trait ReminderStore {
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct LocalMemoryStore {
+pub struct TestMemoryStore {
     pub memories: Vec<MemoryRecord>,
     pub graph_nodes: Vec<GraphNode>,
     pub graph_edges: Vec<GraphEdge>,
@@ -69,32 +68,13 @@ pub struct LocalMemoryStore {
     pub audit_events: Vec<AuditEvent>,
 }
 
-impl LocalMemoryStore {
+impl TestMemoryStore {
     pub fn new() -> Self {
         Self::default()
     }
-
-    pub fn load(path: impl Into<PathBuf>) -> CoreResult<Self> {
-        let path = path.into();
-        if !path.exists() {
-            return Ok(Self::new());
-        }
-        let content = fs::read_to_string(path)?;
-        Ok(serde_json::from_str(&content)?)
-    }
-
-    pub fn save(&self, path: impl Into<PathBuf>) -> CoreResult<()> {
-        let path = path.into();
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)?;
-        }
-        let content = serde_json::to_string_pretty(self)?;
-        fs::write(path, content)?;
-        Ok(())
-    }
 }
 
-impl MemoryIndexStore for LocalMemoryStore {
+impl MemoryIndexStore for TestMemoryStore {
     fn upsert_memory(&mut self, record: MemoryRecord) -> CoreResult<()> {
         record.validate()?;
         if let Some(existing) = self.memories.iter_mut().find(|memory| memory.id == record.id) {
@@ -142,7 +122,7 @@ impl MemoryIndexStore for LocalMemoryStore {
     }
 }
 
-impl GraphStore for LocalMemoryStore {
+impl GraphStore for TestMemoryStore {
     fn merge_node(&mut self, node: GraphNode) -> CoreResult<()> {
         if !self.graph_nodes.iter().any(|existing| {
             existing.user_id == node.user_id
@@ -201,14 +181,14 @@ impl GraphStore for LocalMemoryStore {
     }
 }
 
-impl AuditSink for LocalMemoryStore {
+impl AuditSink for TestMemoryStore {
     fn emit_audit(&mut self, event: AuditEvent) -> CoreResult<()> {
         self.audit_events.push(event);
         Ok(())
     }
 }
 
-impl ReminderStore for LocalMemoryStore {
+impl ReminderStore for TestMemoryStore {
     fn upsert_reminder(&mut self, reminder: ReminderRecord) -> CoreResult<()> {
         if self
             .reminders
