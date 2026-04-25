@@ -1,12 +1,13 @@
 use crate::{
     config::IngestionPolicy,
     contracts::CoreResult,
+    domain::{AuditAction, AuditEvent},
     graph::{graphify_record, merge_graph, GraphHint},
     memory::{
         deterministic_id, now_timestamp, ContentType, MemoryRecord, MemoryType, PrivacyLevel,
         SourceType,
     },
-    store::{AuditAction, AuditEvent, AuditSink, GraphStore, MemoryIndexStore},
+    store::{AuditSink, GraphStore, MemoryIndexStore},
 };
 use serde::{Deserialize, Serialize};
 
@@ -86,10 +87,16 @@ where
     let attempt_id = deterministic_id(&[&request.user_id, &request.content, "write_attempt"]);
     store.emit_audit(AuditEvent {
         id: attempt_id,
+        tenant_id: request.tenant_id.clone(),
+        user_id: Some(request.user_id.clone()),
         actor: request.user_id.clone(),
         action: AuditAction::WriteAttempt,
+        target_type: "memory".to_string(),
         target_id: request.id.clone(),
         reason: "ingest requested".to_string(),
+        request_id: None,
+        trace_id: None,
+        metadata_json: "{}".to_string(),
         created_at: now_timestamp(),
     })?;
 
@@ -106,10 +113,16 @@ where
     if !errors.is_empty() {
         store.emit_audit(AuditEvent {
             id: deterministic_id(&[&request.user_id, &request.content, "write_rejected"]),
+            tenant_id: request.tenant_id,
+            user_id: Some(request.user_id.clone()),
             actor: request.user_id,
             action: AuditAction::WriteRejected,
+            target_type: "memory".to_string(),
             target_id: None,
             reason: errors.join("; "),
+            request_id: None,
+            trace_id: None,
+            metadata_json: "{}".to_string(),
             created_at: now_timestamp(),
         })?;
         return Ok(IngestMemoryResponse {
@@ -151,10 +164,16 @@ where
     merge_graph(store, graph_output)?;
     store.emit_audit(AuditEvent {
         id: deterministic_id(&[&request.user_id, &id, "write_accepted"]),
+        tenant_id: request.tenant_id,
+        user_id: Some(request.user_id.clone()),
         actor: request.user_id,
         action: AuditAction::WriteAccepted,
+        target_type: "memory".to_string(),
         target_id: Some(id.clone()),
         reason: "memory accepted".to_string(),
+        request_id: None,
+        trace_id: None,
+        metadata_json: "{}".to_string(),
         created_at: now_timestamp(),
     })?;
 

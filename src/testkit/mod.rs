@@ -1,32 +1,10 @@
 use crate::{
     contracts::{CoreError, CoreResult},
-    graph::{GraphEdge, GraphNode},
-    memory::{MemoryRecord, MemoryStatus, PrivacyLevel},
+    domain::{AuditEvent, GraphEdge, GraphNode, SessionMessage},
+    memory::{deterministic_id, MemoryRecord, MemoryStatus, PrivacyLevel},
     prospective::ReminderRecord,
 };
 use serde::{Deserialize, Serialize};
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum AuditAction {
-    WriteAttempt,
-    WriteAccepted,
-    WriteRejected,
-    ValidationFailed,
-    Transition,
-    ReminderScheduled,
-    ReminderTransition,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct AuditEvent {
-    pub id: String,
-    pub actor: String,
-    pub action: AuditAction,
-    pub target_id: Option<String>,
-    pub reason: String,
-    pub created_at: String,
-}
 
 pub trait MemoryIndexStore {
     fn upsert_memory(&mut self, record: MemoryRecord) -> CoreResult<()>;
@@ -66,9 +44,21 @@ pub trait ReminderStore {
     ) -> CoreResult<Vec<ReminderRecord>>;
 }
 
+pub trait SessionStore {
+    fn append_session_message(&mut self, message: SessionMessage) -> CoreResult<()>;
+    fn session_tail(
+        &self,
+        tenant_id: &str,
+        user_id: &str,
+        session_id: &str,
+        limit: usize,
+    ) -> CoreResult<Vec<SessionMessage>>;
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct TestMemoryStore {
     pub memories: Vec<MemoryRecord>,
+    pub session_messages: Vec<SessionMessage>,
     pub graph_nodes: Vec<GraphNode>,
     pub graph_edges: Vec<GraphEdge>,
     pub reminders: Vec<ReminderRecord>,
@@ -218,6 +208,46 @@ impl AuditSink for TestMemoryStore {
         self.audit_events.push(event);
         Ok(())
     }
+}
+
+impl SessionStore for TestMemoryStore {
+    fn append_session_message(&mut self, message: SessionMessage) -> CoreResult<()> {
+        if self
+            .session_messages
+            .iter()
+            .any(|existing| existing.idempotency_key == message.idempotency_key)
+        {
+            return Ok(());
+        }
+        self.session_messages.push(message);
+        Ok(())
+    }
+
+    fn session_tail(
+        &self,
+        tenant_id: &str,
+        user_id: &str,
+        session_id: &str,
+        limit: usize,
+    ) -> CoreResult<Vec<SessionMessage>> {
+        let mut messages: Vec<SessionMessage> = self
+            .session_messages
+            .iter()
+            .filter(|message| message.tenant_id == tenant_id)
+            .filter(|message| message.user_id == user_id)
+            .filter(|message| message.session_id == session_id)
+            .cloned()
+            .collect();
+        messages.sort_by(|left, right| left.created_at.cmp(&right.created_at));
+        if messages.len() > limit {
+            messages = messages[messages.len() - limit..].to_vec();
+        }
+        Ok(messages)
+    }
+}
+
+pub fn test_id(parts: &[&str]) -> String {
+    deterministic_id(parts)
 }
 
 impl ReminderStore for TestMemoryStore {
