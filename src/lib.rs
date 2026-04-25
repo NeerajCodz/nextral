@@ -1,9 +1,12 @@
 pub mod adapters;
+pub mod api;
 pub mod config;
 pub mod contracts;
+pub mod domain;
 pub mod graph;
 pub mod ingestion;
 pub mod memory;
+pub mod package;
 pub mod planner;
 pub mod ports;
 pub mod prospective;
@@ -12,6 +15,7 @@ pub mod retrieval;
 pub mod runtime;
 pub mod scoring;
 pub mod store;
+pub mod testkit;
 pub mod topology;
 
 pub use contracts::{CoreError, CoreResult};

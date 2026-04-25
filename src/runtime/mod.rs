@@ -1,11 +1,42 @@
+pub mod ingestion;
+pub mod retrieval;
+
 use crate::{
     contracts::CoreResult,
-    ingestion::{ingest_memory, IngestMemoryRequest, IngestMemoryResponse},
     memory::MemoryRecord,
-    retrieval::{self, RetrievalRequest, RetrievalResponse},
+    runtime::{
+        ingestion::{ingest_memory, IngestMemoryRequest, IngestMemoryResponse},
+        retrieval::{RetrievalRequest, RetrievalResponse},
+    },
     scoring::{self, ScoredRecord},
     store::TestMemoryStore,
 };
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RuntimeHealth {
+    pub status: String,
+    pub config_valid: bool,
+    pub postgres: String,
+    pub redis: String,
+    pub qdrant: String,
+    pub neo4j: String,
+    pub object_store: String,
+}
+
+impl RuntimeHealth {
+    pub fn configured() -> Self {
+        Self {
+            status: "configured".to_string(),
+            config_valid: true,
+            postgres: "not_checked".to_string(),
+            redis: "not_checked".to_string(),
+            qdrant: "not_checked".to_string(),
+            neo4j: "not_checked".to_string(),
+            object_store: "not_checked".to_string(),
+        }
+    }
+}
 
 #[derive(Debug, Clone, Default)]
 pub struct TestRuntime {
