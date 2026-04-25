@@ -1,6 +1,7 @@
 pub mod contracts;
 pub mod graph;
 pub mod ingestion;
+pub mod local_api;
 pub mod memory;
 pub mod prospective;
 pub mod retrieval;
