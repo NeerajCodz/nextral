@@ -9,8 +9,14 @@ fn lexical_score(text: String, query: String) -> PyResult<f32> {
     nextral::scoring::try_lexical_score(&text, &query).map_err(map_core_error)
 }
 
+#[pyfunction]
+fn validate_config(config_json: String) -> PyResult<String> {
+    nextral::config::validate_config_json(&config_json).map_err(map_core_error)
+}
+
 #[pymodule]
 fn _nextral(_py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(lexical_score, module)?)?;
+    module.add_function(wrap_pyfunction!(validate_config, module)?)?;
     Ok(())
 }

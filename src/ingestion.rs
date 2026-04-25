@@ -1,4 +1,5 @@
 use crate::{
+    config::IngestionPolicy,
     contracts::CoreResult,
     graph::{graphify_record, merge_graph, GraphHint},
     memory::{
@@ -8,9 +9,6 @@ use crate::{
     store::{AuditAction, AuditEvent, AuditSink, GraphStore, MemoryIndexStore},
 };
 use serde::{Deserialize, Serialize};
-
-const MIN_IMPORTANCE: f32 = 0.2;
-const MIN_CONFIDENCE: f32 = 0.2;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct IngestMemoryRequest {
@@ -28,6 +26,7 @@ pub struct IngestMemoryRequest {
     pub tags: Vec<String>,
     pub privacy_level: PrivacyLevel,
     pub graph_hints: Vec<GraphHint>,
+    pub policy: IngestionPolicy,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -46,22 +45,30 @@ pub struct IngestMemoryResponse {
 }
 
 impl IngestMemoryRequest {
-    pub fn semantic_fact(user_id: impl Into<String>, content: impl Into<String>) -> Self {
+    pub fn new(
+        user_id: impl Into<String>,
+        content: impl Into<String>,
+        content_type: ContentType,
+        memory_type: MemoryType,
+        source_type: SourceType,
+        policy: IngestionPolicy,
+    ) -> Self {
         Self {
             id: None,
             user_id: user_id.into(),
             session_id: None,
             content: content.into(),
-            content_type: ContentType::Fact,
-            memory_type: MemoryType::Semantic,
-            source_type: SourceType::Manual,
+            content_type,
+            memory_type,
+            source_type,
             source_message_ids: Vec::new(),
-            importance_score: 0.5,
-            confidence_score: Some(0.8),
+            importance_score: 0.0,
+            confidence_score: None,
             entities: Vec::new(),
             tags: Vec::new(),
             privacy_level: PrivacyLevel::Private,
             graph_hints: Vec::new(),
+            policy,
         }
     }
 }
@@ -84,10 +91,10 @@ where
     if request.content.trim().is_empty() {
         errors.push("content cannot be empty".to_string());
     }
-    if request.importance_score < MIN_IMPORTANCE {
+    if request.importance_score < request.policy.min_importance_score {
         errors.push("importance_score is below write threshold".to_string());
     }
-    if request.confidence_score.unwrap_or(0.8) < MIN_CONFIDENCE {
+    if request.confidence_score.unwrap_or(0.0) < request.policy.min_confidence_score {
         errors.push("confidence_score is below write threshold".to_string());
     }
     if !errors.is_empty() {

@@ -1,8 +1,10 @@
+pub mod adapters;
+pub mod config;
 pub mod contracts;
 pub mod graph;
 pub mod ingestion;
-pub mod local_api;
 pub mod memory;
+pub mod providers;
 pub mod prospective;
 pub mod retrieval;
 pub mod runtime;
@@ -14,6 +16,12 @@ pub use contracts::{CoreError, CoreResult};
 #[cfg(test)]
 mod tests {
     use crate::{
+        config::{
+            AuthConfig, CacheConfig, EmbeddingProviderConfig, EmbeddingProviderKind,
+            ExtractionProviderConfig, ExtractionProviderKind, IngestionPolicy, NextralConfig,
+            ObservabilityConfig, RetrievalPolicy, RuntimeBackend, ScoringWeights, ServiceConfig,
+            StoreConfig,
+        },
         ingestion::{ingest_memory, IngestMemoryRequest, IngestStatus},
         memory::{ContentType, MemoryRecord, MemoryStatus, MemoryType, PrivacyLevel, SourceType},
         prospective::{ReminderRecord, ReminderStatus},
@@ -104,12 +112,20 @@ mod tests {
     #[test]
     fn ingestion_retrieval_graph_and_reminders_work() {
         let mut store = LocalMemoryStore::new();
-        let mut request = IngestMemoryRequest::semantic_fact(
+        let mut request = IngestMemoryRequest::new(
             "usr_1",
             "Rajan leads backend for Project Atlas using PostgreSQL",
+            ContentType::Fact,
+            MemoryType::Semantic,
+            SourceType::Manual,
+            IngestionPolicy {
+                min_importance_score: 0.2,
+                min_confidence_score: 0.2,
+            },
         );
         request.entities = vec!["Project Atlas".to_string(), "PostgreSQL".to_string()];
         request.importance_score = 0.9;
+        request.confidence_score = Some(0.8);
 
         let response = ingest_memory(&mut store, request).unwrap();
         assert_eq!(response.status, IngestStatus::Accepted);
@@ -140,5 +156,76 @@ mod tests {
             .unwrap();
         store.upsert_reminder(reminder).unwrap();
         assert_eq!(store.list_due_reminders("usr_1", "9999999999").unwrap().len(), 1);
+    }
+
+    #[test]
+    fn production_config_requires_all_store_and_provider_settings() {
+        let config = NextralConfig {
+            backend: RuntimeBackend::ProductionStores,
+            stores: Some(StoreConfig {
+                postgres_url: "postgres://nextral".to_string(),
+                redis_url: "redis://nextral".to_string(),
+                qdrant_url: "http://qdrant:6334".to_string(),
+                neo4j_url: "neo4j://neo4j:7687".to_string(),
+                s3_endpoint: "http://minio:9000".to_string(),
+                s3_bucket: "nextral".to_string(),
+                s3_region: "us-east-1".to_string(),
+                s3_access_key_env: "NEXTRAL_S3_ACCESS_KEY".to_string(),
+                s3_secret_key_env: "NEXTRAL_S3_SECRET_KEY".to_string(),
+            }),
+            embedding: EmbeddingProviderConfig {
+                kind: EmbeddingProviderKind::OpenAiCompatible,
+                model: "configured-by-user".to_string(),
+                dimension: 1536,
+                endpoint: Some("https://example.invalid/v1/embeddings".to_string()),
+                api_key_env: Some("NEXTRAL_EMBEDDING_API_KEY".to_string()),
+            },
+            extraction: ExtractionProviderConfig {
+                kind: ExtractionProviderKind::Http,
+                model: "configured-by-user".to_string(),
+                endpoint: Some("https://example.invalid/extract".to_string()),
+                api_key_env: Some("NEXTRAL_EXTRACTION_API_KEY".to_string()),
+            },
+            ingestion_policy: IngestionPolicy {
+                min_importance_score: 0.4,
+                min_confidence_score: 0.6,
+            },
+            retrieval_policy: RetrievalPolicy {
+                privacy_scope: vec![PrivacyLevel::Private],
+                token_budget: 1200,
+                top_k_vector: 12,
+                max_graph_hops: 2,
+                scoring_weights: ScoringWeights {
+                    semantic_similarity: 0.5,
+                    recency: 0.2,
+                    importance: 0.2,
+                    access: 0.1,
+                },
+            },
+            cache: CacheConfig {
+                key_prefix: "nextral".to_string(),
+                session_ttl_seconds: 7200,
+                retrieval_ttl_seconds: 120,
+                policy_ttl_seconds: 300,
+            },
+            service: ServiceConfig {
+                http_bind: Some("127.0.0.1:8080".to_string()),
+                grpc_bind: None,
+                graphql_bind: None,
+            },
+            auth: AuthConfig {
+                issuer: None,
+                audience: None,
+                jwks_url: None,
+                service_token_env: Some("NEXTRAL_SERVICE_TOKEN".to_string()),
+            },
+            observability: ObservabilityConfig {
+                enabled: false,
+                otlp_endpoint: None,
+                prometheus_bind: None,
+            },
+        };
+
+        assert!(config.validate().is_ok());
     }
 }
