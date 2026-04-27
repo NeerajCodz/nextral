@@ -46,8 +46,15 @@ fn run() -> Result<(), String> {
                 package::reembed_plan_json(&json).map_err(|error| error.message)?
             );
         }
+        (Some("mcp"), Some("call")) => {
+            let request = args.next().ok_or("missing mcp call request json")?;
+            println!(
+                "{}",
+                package::mcp_call_json(&request).map_err(|error| error.message)?
+            );
+        }
         _ => {
-            println!("usage: nextral config validate <config.json> | adapters smoke <request.json> | memory ingest | memory smoke | jobs reembed-plan <request.json>");
+            println!("usage: nextral config validate <config.json> | adapters smoke <request.json> | memory ingest | memory smoke | jobs reembed-plan <request.json> | mcp call '<json>'");
         }
     }
     Ok(())

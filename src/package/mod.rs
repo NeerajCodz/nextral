@@ -1,21 +1,27 @@
 use crate::contracts::{CoreError, CoreResult};
 use crate::{
-    adapters::{postgres::PostgresAdapter, redis::RedisAdapter},
+    adapters::{neo4j::Neo4jAdapter, postgres::PostgresAdapter, qdrant::QdrantAdapter, redis::RedisAdapter, s3::S3Adapter},
     config::IngestionPolicy,
     ingestion::IngestMemoryRequest,
     memory::{ContentType, MemoryRecord, MemoryType, SourceType},
-    ports::{AuditWrite, CacheEntry, PostgresPort, RedisPort, TenantUserScope},
+    ports::{AuditWrite, CacheEntry, Neo4jPort, ObjectArchivePort, PostgresPort, QdrantPort, RedisPort, TenantUserScope, VectorSearchRequest},
     retrieval::RetrievalRequest,
     runtime::{
         consolidation::{consolidate_session, ConsolidationLane, ConsolidationRequest},
         governance::{forget_memory, ForgetMemoryRequest},
+        intelligence::{
+            classify_severity, decision_for, ExperimentRegistry, RuntimeLane, SafetyPolicy,
+            Severity,
+        },
+        evaluation::{canary_replay_gate, report_from_severity},
         reembed::plan_reembed,
-        reminders::{schedule_reminder, ScheduleReminderRequest},
+        reminders::{execute_due_reminders, schedule_reminder, ExecuteDueRemindersRequest, ScheduleReminderRequest},
         session::{append_session_message, assemble_working_context, AppendSessionMessageRequest},
     },
     store::TestMemoryStore,
 };
 use serde::{Deserialize, Serialize};
+use std::sync::{Mutex, OnceLock};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct PackageError {
@@ -23,10 +29,17 @@ pub struct PackageError {
     pub message: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct AdapterSmokeRequest {
     pub postgres_url: String,
     pub redis_url: String,
+    pub qdrant_url: String,
+    pub neo4j_url: String,
+    pub s3_endpoint: String,
+    pub s3_bucket: String,
+    pub s3_region: String,
+    pub s3_access_key_env: String,
+    pub s3_secret_key_env: String,
     pub redis_key_prefix: String,
     pub tenant_id: String,
     pub user_id: String,
@@ -42,6 +55,66 @@ pub struct AdapterSmokeRequest {
     pub cache_key: String,
     pub cache_value_json: String,
     pub cache_ttl_seconds: u64,
+    pub qdrant_collection: String,
+    pub qdrant_dimension: u32,
+    pub qdrant_query_vector: Vec<f32>,
+    pub qdrant_point_vector: Vec<f32>,
+    pub qdrant_distance: String,
+    pub graph_hops: u8,
+    pub archive_kind: String,
+    pub archive_bytes: String,
+    pub archive_sha256: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct McpCallRequest {
+    pub tool: String,
+    pub payload_json: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ExperimentCreateRequest {
+    pub lane: RuntimeLane,
+    pub policy_version: String,
+    pub description: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ExperimentPromoteRequest {
+    pub experiment_id: String,
+    pub severity: Severity,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ExperimentRollbackRequest {
+    pub experiment_id: String,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct SafetyPolicySetRequest {
+    pub severity: Severity,
+    pub action: crate::runtime::intelligence::DecisionAction,
+}
+
+#[derive(Debug)]
+struct RuntimeControlPlane {
+    registry: ExperimentRegistry,
+    safety_policy: SafetyPolicy,
+}
+
+impl Default for RuntimeControlPlane {
+    fn default() -> Self {
+        Self {
+            registry: ExperimentRegistry::default(),
+            safety_policy: SafetyPolicy::default(),
+        }
+    }
+}
+
+fn control_plane() -> &'static Mutex<RuntimeControlPlane> {
+    static INSTANCE: OnceLock<Mutex<RuntimeControlPlane>> = OnceLock::new();
+    INSTANCE.get_or_init(|| Mutex::new(RuntimeControlPlane::default()))
 }
 
 pub fn e2e_smoke_json() -> Result<String, PackageError> {
@@ -85,6 +158,7 @@ pub fn e2e_smoke_json() -> Result<String, PackageError> {
             title: "Check Atlas migration".to_string(),
             due_at: "9999999999".to_string(),
             timezone: "configured-by-user".to_string(),
+            trace_id: None,
         },
     )?;
     let mut retrieval = RetrievalRequest::test("test_tenant", "test_user", "PostgreSQL");
@@ -120,6 +194,15 @@ pub fn adapter_smoke_json(request_json: &str) -> Result<String, PackageError> {
 
     let postgres = PostgresAdapter::new(&request.postgres_url)?;
     let redis = RedisAdapter::new(&request.redis_url, &request.redis_key_prefix)?;
+    let qdrant = QdrantAdapter::new(&request.qdrant_url, &request.qdrant_collection)?;
+    let neo4j = Neo4jAdapter::new(&request.neo4j_url)?;
+    let s3 = S3Adapter::new(
+        &request.s3_endpoint,
+        &request.s3_bucket,
+        &request.s3_region,
+        &request.s3_access_key_env,
+        &request.s3_secret_key_env,
+    )?;
     postgres.migrate()?;
 
     let mut record = MemoryRecord::new(
@@ -179,6 +262,50 @@ pub fn adapter_smoke_json(request_json: &str) -> Result<String, PackageError> {
         &request.memory_id,
         "{}",
     )?;
+    qdrant.ensure_collection(
+        &request.qdrant_collection,
+        request.qdrant_dimension,
+        &request.qdrant_distance,
+    )?;
+    qdrant.upsert_point(
+        &request.qdrant_collection,
+        &crate::ports::VectorPoint {
+            memory_id: request.memory_id.clone(),
+            tenant_id: request.tenant_id.clone(),
+            user_id: request.user_id.clone(),
+            vector: request.qdrant_point_vector.clone(),
+            privacy_level: crate::memory::PrivacyLevel::Private,
+            status: crate::memory::MemoryStatus::Active,
+            content_type: "fact".to_string(),
+            memory_type: "semantic".to_string(),
+            schema_version: "1.0.0".to_string(),
+        },
+    )?;
+    let vector_hits = qdrant.search(
+        &request.qdrant_collection,
+        &VectorSearchRequest {
+            scope: scope.clone(),
+            query_vector: request.qdrant_query_vector.clone(),
+            privacy_scope: vec![crate::memory::PrivacyLevel::Private],
+            top_k: 3,
+        },
+    )?;
+    neo4j.merge_node(&crate::graph::GraphNode::new(
+        &request.user_id,
+        "Entity",
+        &request.memory_id,
+        0.8,
+    )?)?;
+    let related_ids = neo4j.related_memory_ids(&scope, std::slice::from_ref(&request.memory_id), request.graph_hops)?;
+    let archive_receipt = s3.put_object(&crate::ports::ArchiveObject {
+        tenant_id: request.tenant_id.clone(),
+        user_id: request.user_id.clone(),
+        session_id: Some(request.session_id.clone()),
+        memory_id: Some(request.memory_id.clone()),
+        object_kind: request.archive_kind.clone(),
+        content_sha256: request.archive_sha256.clone(),
+        bytes: request.archive_bytes.as_bytes().to_vec(),
+    })?;
 
     redis.put_cache(&CacheEntry {
         key: request.cache_key.clone(),
@@ -203,9 +330,171 @@ pub fn adapter_smoke_json(request_json: &str) -> Result<String, PackageError> {
         "outbox_id": outbox_id,
         "cache_key": request.cache_key,
         "cache_value": cached,
-        "lease_acquired": lease_acquired
+        "lease_acquired": lease_acquired,
+        "vector_hits": vector_hits.len(),
+        "graph_related_ids": related_ids,
+        "archive_object_key": archive_receipt.object_key
     });
     Ok(payload.to_string())
+}
+
+pub fn mcp_call_json(request_json: &str) -> Result<String, PackageError> {
+    let request: McpCallRequest = serde_json::from_str(request_json).map_err(CoreError::from)?;
+    match request.tool.as_str() {
+        "nextral.memory.ingest" => {
+            let payload: IngestMemoryRequest =
+                serde_json::from_str(&request.payload_json).map_err(CoreError::from)?;
+            let mut runtime = crate::runtime::TestRuntime::new();
+            Ok(serde_json::to_string(&runtime.ingest(payload)?).map_err(CoreError::from)?)
+        }
+        "nextral.memory.retrieve" => {
+            let payload: RetrievalRequest =
+                serde_json::from_str(&request.payload_json).map_err(CoreError::from)?;
+            let mut runtime = crate::runtime::TestRuntime::new();
+            let mut response = runtime.retrieve(payload)?;
+            let control = control_plane()
+                .lock()
+                .map_err(|error| CoreError::Conflict(error.to_string()))?;
+            let severity = classify_severity(
+                response.quality_score,
+                if response.items.is_empty() { 1.0 } else { 0.0 },
+                !response.telemetry.degraded_reasons.is_empty(),
+            );
+            response.severity = severity.clone();
+            response.decision_action = decision_for(&control.safety_policy, &severity);
+            response.lane = control.registry.current_lane.clone();
+            response.policy_version = control.registry.active_policy_version.clone();
+            Ok(serde_json::to_string(&response).map_err(CoreError::from)?)
+        }
+        "nextral.memory.forget" => {
+            let payload: ForgetMemoryRequest =
+                serde_json::from_str(&request.payload_json).map_err(CoreError::from)?;
+            let mut store = TestMemoryStore::new();
+            Ok(serde_json::to_string(&forget_memory(&mut store, payload)?).map_err(CoreError::from)?)
+        }
+        "nextral.reminders.due" => {
+            let payload: ExecuteDueRemindersRequest =
+                serde_json::from_str(&request.payload_json).map_err(CoreError::from)?;
+            let mut store = TestMemoryStore::new();
+            Ok(serde_json::to_string(&execute_due_reminders(&mut store, payload)?).map_err(CoreError::from)?)
+        }
+        "experiments.create" => {
+            let payload: ExperimentCreateRequest =
+                serde_json::from_str(&request.payload_json).map_err(CoreError::from)?;
+            let mut control = control_plane()
+                .lock()
+                .map_err(|error| CoreError::Conflict(error.to_string()))?;
+            let experiment = control
+                .registry
+                .create(payload.lane, payload.policy_version, payload.description);
+            Ok(serde_json::to_string(&experiment).map_err(CoreError::from)?)
+        }
+        "experiments.promote" => {
+            let payload: ExperimentPromoteRequest =
+                serde_json::from_str(&request.payload_json).map_err(CoreError::from)?;
+            let mut control = control_plane()
+                .lock()
+                .map_err(|error| CoreError::Conflict(error.to_string()))?;
+            let report = report_from_severity(&payload.severity);
+            if !canary_replay_gate(&report) {
+                let quarantined = control
+                    .registry
+                    .promote(&payload.experiment_id, Severity::Destructive)
+                    .ok_or_else(|| {
+                        CoreError::NotFound(format!(
+                            "experiment {} not found",
+                            payload.experiment_id
+                        ))
+                    })?;
+                return Ok(serde_json::to_string(&serde_json::json!({
+                    "status": "blocked_by_replay_gate",
+                    "report": report,
+                    "experiment": quarantined
+                }))
+                .map_err(CoreError::from)?);
+            }
+            let experiment = control
+                .registry
+                .promote(&payload.experiment_id, payload.severity)
+                .ok_or_else(|| {
+                    CoreError::NotFound(format!(
+                        "experiment {} not found",
+                        payload.experiment_id
+                    ))
+                })?;
+            Ok(serde_json::to_string(&experiment).map_err(CoreError::from)?)
+        }
+        "experiments.rollback" => {
+            let payload: ExperimentRollbackRequest =
+                serde_json::from_str(&request.payload_json).map_err(CoreError::from)?;
+            let mut control = control_plane()
+                .lock()
+                .map_err(|error| CoreError::Conflict(error.to_string()))?;
+            let experiment = control
+                .registry
+                .rollback(&payload.experiment_id, &payload.reason)
+                .ok_or_else(|| {
+                    CoreError::NotFound(format!(
+                        "experiment {} not found",
+                        payload.experiment_id
+                    ))
+                })?;
+            Ok(serde_json::to_string(&experiment).map_err(CoreError::from)?)
+        }
+        "experiments.status" => {
+            let id = if request.payload_json.trim().is_empty() {
+                None
+            } else {
+                Some(
+                    serde_json::from_str::<serde_json::Value>(&request.payload_json)
+                        .map_err(CoreError::from)?
+                        .get("experiment_id")
+                        .and_then(|value| value.as_str())
+                        .unwrap_or_default()
+                        .to_string(),
+                )
+            };
+            let control = control_plane()
+                .lock()
+                .map_err(|error| CoreError::Conflict(error.to_string()))?;
+            let status = control.registry.status(id.as_deref());
+            Ok(serde_json::to_string(&status).map_err(CoreError::from)?)
+        }
+        "safety.policy.get" => {
+            let control = control_plane()
+                .lock()
+                .map_err(|error| CoreError::Conflict(error.to_string()))?;
+            Ok(serde_json::to_string(&control.safety_policy).map_err(CoreError::from)?)
+        }
+        "safety.policy.set" => {
+            let payload: SafetyPolicySetRequest =
+                serde_json::from_str(&request.payload_json).map_err(CoreError::from)?;
+            let mut control = control_plane()
+                .lock()
+                .map_err(|error| CoreError::Conflict(error.to_string()))?;
+            control
+                .safety_policy
+                .actions
+                .insert(payload.severity, payload.action);
+            Ok(serde_json::to_string(&control.safety_policy).map_err(CoreError::from)?)
+        }
+        "nextral.graph.query" => {
+            let payload: RetrievalRequest =
+                serde_json::from_str(&request.payload_json).map_err(CoreError::from)?;
+            let mut store = TestMemoryStore::new();
+            let response = crate::runtime::retrieval::retrieve(&mut store, payload)?;
+            let graph_only: Vec<_> = response
+                .items
+                .into_iter()
+                .filter(|item| !matches!(item.source_path, crate::retrieval::SourcePath::Vector))
+                .collect();
+            Ok(serde_json::to_string(&serde_json::json!({ "items": graph_only })).map_err(CoreError::from)?)
+        }
+        other => Err(PackageError {
+            code: "invalid_input".to_string(),
+            message: format!("unknown MCP tool: {other}"),
+        }),
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -250,6 +539,13 @@ fn validate_adapter_smoke_request(request: &AdapterSmokeRequest) -> CoreResult<(
     let required = [
         ("postgres_url", request.postgres_url.as_str()),
         ("redis_url", request.redis_url.as_str()),
+        ("qdrant_url", request.qdrant_url.as_str()),
+        ("neo4j_url", request.neo4j_url.as_str()),
+        ("s3_endpoint", request.s3_endpoint.as_str()),
+        ("s3_bucket", request.s3_bucket.as_str()),
+        ("s3_region", request.s3_region.as_str()),
+        ("s3_access_key_env", request.s3_access_key_env.as_str()),
+        ("s3_secret_key_env", request.s3_secret_key_env.as_str()),
         ("redis_key_prefix", request.redis_key_prefix.as_str()),
         ("tenant_id", request.tenant_id.as_str()),
         ("user_id", request.user_id.as_str()),
@@ -263,6 +559,11 @@ fn validate_adapter_smoke_request(request: &AdapterSmokeRequest) -> CoreResult<(
         ("timezone", request.timezone.as_str()),
         ("cache_key", request.cache_key.as_str()),
         ("cache_value_json", request.cache_value_json.as_str()),
+        ("qdrant_collection", request.qdrant_collection.as_str()),
+        ("qdrant_distance", request.qdrant_distance.as_str()),
+        ("archive_kind", request.archive_kind.as_str()),
+        ("archive_bytes", request.archive_bytes.as_str()),
+        ("archive_sha256", request.archive_sha256.as_str()),
     ];
     for (name, value) in required {
         if value.trim().is_empty() {
@@ -277,6 +578,26 @@ fn validate_adapter_smoke_request(request: &AdapterSmokeRequest) -> CoreResult<(
     if request.cache_ttl_seconds == 0 {
         return Err(CoreError::InvalidInput(
             "cache_ttl_seconds must be greater than zero".to_string(),
+        ));
+    }
+    if request.qdrant_dimension == 0 {
+        return Err(CoreError::InvalidInput(
+            "qdrant_dimension must be greater than zero".to_string(),
+        ));
+    }
+    if request.qdrant_query_vector.is_empty() || request.qdrant_point_vector.is_empty() {
+        return Err(CoreError::InvalidInput(
+            "qdrant vectors are required".to_string(),
+        ));
+    }
+    if request.qdrant_query_vector.len() != request.qdrant_point_vector.len() {
+        return Err(CoreError::InvalidInput(
+            "qdrant vectors must have the same length".to_string(),
+        ));
+    }
+    if request.qdrant_point_vector.len() != request.qdrant_dimension as usize {
+        return Err(CoreError::InvalidInput(
+            "qdrant vectors must match qdrant_dimension".to_string(),
         ));
     }
     serde_json::from_str::<serde_json::Value>(&request.cache_value_json)
