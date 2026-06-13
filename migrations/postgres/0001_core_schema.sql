@@ -17,6 +17,8 @@ CREATE TABLE IF NOT EXISTS nextral_memories (
     embedding_model TEXT NOT NULL,
     embedding_dim INTEGER NOT NULL CHECK (embedding_dim > 0),
     vector_point_id TEXT,
+    extraction_provider TEXT,
+    extraction_model TEXT,
     entities JSONB NOT NULL DEFAULT '[]',
     tags JSONB NOT NULL DEFAULT '[]',
     privacy_level TEXT NOT NULL,
@@ -77,7 +79,7 @@ CREATE TABLE IF NOT EXISTS nextral_reminders (
     id TEXT PRIMARY KEY,
     tenant_id TEXT NOT NULL,
     user_id TEXT NOT NULL,
-    source_memory_id TEXT NOT NULL REFERENCES nextral_memories(id),
+    source_memory_id TEXT NOT NULL REFERENCES nextral_memories(id) ON DELETE CASCADE,
     kind TEXT NOT NULL,
     title TEXT NOT NULL,
     details TEXT NOT NULL DEFAULT '',
@@ -96,6 +98,9 @@ CREATE TABLE IF NOT EXISTS nextral_reminders (
 CREATE INDEX IF NOT EXISTS idx_nextral_reminders_due
     ON nextral_reminders (tenant_id, user_id, status, next_attempt_at);
 
+CREATE INDEX IF NOT EXISTS idx_nextral_reminders_source_memory
+    ON nextral_reminders (source_memory_id);
+
 CREATE TABLE IF NOT EXISTS nextral_audit_events (
     id TEXT PRIMARY KEY,
     tenant_id TEXT NOT NULL,
@@ -113,6 +118,9 @@ CREATE TABLE IF NOT EXISTS nextral_audit_events (
 
 CREATE INDEX IF NOT EXISTS idx_nextral_audit_target
     ON nextral_audit_events (tenant_id, target_type, target_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_nextral_audit_actor
+    ON nextral_audit_events (tenant_id, actor_id, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS nextral_idempotency_keys (
     id TEXT PRIMARY KEY,

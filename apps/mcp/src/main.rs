@@ -2,7 +2,9 @@ use nextral::package::{e2e_smoke_json, ingest_request_schema_json, mcp_call_json
 use std::{env, process};
 
 fn main() {
+    tracing_subscriber::fmt::init();
     if let Err(error) = run() {
+        tracing::error!(error = %error, "MCP call failed");
         eprintln!("{error}");
         process::exit(1);
     }
@@ -18,8 +20,24 @@ fn run() -> Result<(), String> {
                         "nextral.memory.ingest",
                         "nextral.memory.retrieve",
                         "nextral.memory.forget",
+                        "nextral.memory.list",
                         "nextral.graph.query",
+                        "nextral.graph.graphify",
                         "nextral.reminders.due",
+                        "nextral.reminders.schedule",
+                        "nextral.session.append",
+                        "nextral.session.context",
+                        "nextral.consolidation.run",
+                        "nextral.reembed.plan",
+                        "nextral.health",
+                        "nextral.runtime.scored_search",
+                        "nextral.memory.update",
+                        "nextral.memory.stats",
+                        "nextral.memory.search_by_tag",
+                        "nextral.memory.search_by_entity",
+                        "nextral.batch.ingest",
+                        "nextral.batch.retrieve",
+                        "nextral.batch.forget",
                         "experiments.create",
                         "experiments.promote",
                         "experiments.rollback",

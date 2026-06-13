@@ -38,19 +38,26 @@ pub fn forget_memory(
         None
     };
     store.update_memory(record)?;
+    let mut receipts = vec![StoreReceipt::ok(
+        "postgres",
+        "mark_deleted_or_redacted",
+        Some(request.memory_id.clone()),
+    )];
+    if request.redact {
+        receipts.push(StoreReceipt::ok(
+            "content_redacted",
+            "redact_content",
+            Some(request.memory_id.clone()),
+        ));
+    }
+    receipts.push(StoreReceipt::ok(
+        "pending_async",
+        "propagate_to_external_stores",
+        Some(request.memory_id),
+    ));
     Ok(ForgetMemoryResponse {
         transition,
         redaction_transition,
-        receipts: vec![
-            StoreReceipt::ok(
-                "postgres",
-                "mark_deleted_or_redacted",
-                Some(request.memory_id.clone()),
-            ),
-            StoreReceipt::ok("qdrant", "delete_point", Some(request.memory_id.clone())),
-            StoreReceipt::ok("neo4j", "redact_edges", Some(request.memory_id.clone())),
-            StoreReceipt::ok("redis", "invalidate_cache", Some(request.memory_id.clone())),
-            StoreReceipt::ok("s3", "append_tombstone_manifest", Some(request.memory_id)),
-        ],
+        receipts,
     })
 }

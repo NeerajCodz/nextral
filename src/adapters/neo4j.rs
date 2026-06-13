@@ -23,11 +23,14 @@ impl Neo4jAdapter {
             return Err(CoreError::InvalidInput("neo4j_url is required".to_string()));
         }
         let hardening = TransportHardeningProfile::baseline(Some("NEXTRAL_NEO4J_API_KEY"));
-        validate_transport_url(
-            &url.replace("neo4j://", "http://").replace("bolt://", "http://"),
-            hardening.require_tls,
-        )
-        .map_err(CoreError::InvalidInput)?;
+        let is_tls = url.starts_with("neo4j+s://") || url.starts_with("bolt+s://");
+        let http_url = url
+            .replace("neo4j+s://", "https://")
+            .replace("bolt+s://", "https://")
+            .replace("neo4j://", "http://")
+            .replace("bolt://", "http://");
+        validate_transport_url(&http_url, is_tls)
+            .map_err(CoreError::InvalidInput)?;
         Ok(Self { url, hardening })
     }
 
@@ -44,12 +47,24 @@ impl Neo4jAdapter {
     }
 
     fn http_url(&self) -> String {
-        self.url
+        let url = self.url
             .replace("neo4j://", "http://")
-            .replace("bolt://", "http://")
+            .replace("bolt://", "http://");
+        // Neo4j HTTP API runs on port 7474, not bolt port 7687
+        if let Some(stripped) = url.strip_suffix(":7687") {
+            format!("{}:7474", stripped)
+        } else {
+            url
+        }
     }
 
     fn cypher(&self, statement: &str, params: Value) -> CoreResult<Value> {
+        use std::time::Duration;
+        let client = Client::builder()
+            .connect_timeout(Duration::from_secs(5))
+            .timeout(Duration::from_secs(30))
+            .build()
+            .map_err(|error| CoreError::Io(error.to_string()))?;
         let payload = json!({
             "statements": [{
                 "statement": statement,
@@ -57,7 +72,7 @@ impl Neo4jAdapter {
             }]
         });
         let response = maybe_add_bearer_auth(
-            Client::new().post(format!(
+            client.post(format!(
                 "{}/db/neo4j/tx/commit",
                 self.http_url().trim_end_matches('/')
             )),

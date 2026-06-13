@@ -59,9 +59,19 @@ impl S3Adapter {
         AdapterHealth::configured("s3")
     }
 
+    fn hardened_client(&self) -> CoreResult<Client> {
+        use std::time::Duration;
+        Client::builder()
+            .connect_timeout(Duration::from_millis(self.hardening.connect_timeout_ms))
+            .timeout(Duration::from_millis(self.hardening.request_timeout_ms))
+            .build()
+            .map_err(|error| CoreError::Io(error.to_string()))
+    }
+
     pub fn readiness(&self) -> CoreResult<Value> {
+        let client = self.hardened_client()?;
         let response = maybe_add_bearer_auth(
-            Client::new().get(format!(
+            client.get(format!(
                 "{}/{}",
                 self.endpoint.trim_end_matches('/'),
                 self.bucket
@@ -80,7 +90,14 @@ impl S3Adapter {
 
 impl ObjectArchivePort for S3Adapter {
     fn put_object(&self, object: &ArchiveObject) -> CoreResult<ArchiveReceipt> {
-        // Verify content SHA256 matches the actual bytes
+        const MAX_UPLOAD_BYTES: usize = 100 * 1024 * 1024;
+        if object.bytes.len() > MAX_UPLOAD_BYTES {
+            return Err(CoreError::InvalidInput(format!(
+                "archive object size {} exceeds maximum {} bytes",
+                object.bytes.len(),
+                MAX_UPLOAD_BYTES
+            )));
+        }
         let computed_sha256 = compute_sha256(&object.bytes);
         if computed_sha256 != object.content_sha256 {
             return Err(CoreError::InvalidInput(format!(
@@ -89,16 +106,23 @@ impl ObjectArchivePort for S3Adapter {
             )));
         }
 
+        fn sanitize_path_component(s: &str) -> String {
+            s.chars()
+                .filter(|c| c.is_alphanumeric() || *c == '-' || *c == '_' || *c == '.')
+                .take(128)
+                .collect()
+        }
         let object_key = format!(
             "tenants/{}/users/{}/sessions/{}/memories/{}/{}.bin",
-            object.tenant_id,
-            object.user_id,
-            object.session_id.as_deref().unwrap_or("unknown_session"),
-            object.memory_id.as_deref().unwrap_or("unknown_memory"),
-            object.object_kind
+            sanitize_path_component(&object.tenant_id),
+            sanitize_path_component(&object.user_id),
+            sanitize_path_component(object.session_id.as_deref().unwrap_or("unknown_session")),
+            sanitize_path_component(object.memory_id.as_deref().unwrap_or("unknown_memory")),
+            sanitize_path_component(&object.object_kind)
         );
+        let client = self.hardened_client()?;
         let response = maybe_add_bearer_auth(
-            Client::new().put(format!(
+            client.put(format!(
                 "{}/{}/{}",
                 self.endpoint.trim_end_matches('/'),
                 self.bucket,
@@ -135,7 +159,6 @@ impl ObjectArchivePort for S3Adapter {
         object_key: &str,
         reason: &str,
     ) -> CoreResult<()> {
-        // Validate that object_key belongs to the tenant
         let expected_prefix = format!("tenants/{}/", tenant_id);
         if !object_key.starts_with(&expected_prefix) {
             return Err(CoreError::InvalidInput(format!(
@@ -143,17 +166,21 @@ impl ObjectArchivePort for S3Adapter {
                 object_key, tenant_id
             )));
         }
-
+        let tombstone_key = format!("{}.tombstone", object_key);
+        let client = self.hardened_client()?;
         let response = maybe_add_bearer_auth(
-            Client::new().delete(format!(
+            client.put(format!(
                 "{}/{}/{}",
                 self.endpoint.trim_end_matches('/'),
                 self.bucket,
-                object_key
+                tombstone_key
             )),
             self.hardening.token_env.as_deref(),
         )
         .header("x-amz-meta-tombstone-reason", reason)
+        .header("x-amz-meta-original-key", object_key)
+        .header("x-amz-meta-tombstone-at", crate::memory::now_timestamp())
+        .body(reason.as_bytes().to_vec())
             .send()
             .map_err(|error| CoreError::Io(error.to_string()))?;
         if !response.status().is_success() {
@@ -166,14 +193,9 @@ impl ObjectArchivePort for S3Adapter {
     }
 }
 
-/// Compute SHA256 hash of bytes and return as hex string
 fn compute_sha256(bytes: &[u8]) -> String {
-    use std::collections::hash_map::DefaultHasher;
-    use std::hash::{Hash, Hasher};
-
-    // Simple SHA256-like hash using DefaultHasher (for demonstration)
-    // In production, use a proper SHA256 implementation
-    let mut hasher = DefaultHasher::new();
-    bytes.hash(&mut hasher);
-    format!("{:016x}", hasher.finish())
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(bytes);
+    format!("{:x}", hasher.finalize())
 }
